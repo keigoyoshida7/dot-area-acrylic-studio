@@ -1,0 +1,8 @@
+{
+  "name": "dot-area-acrylic-studio",
+  "version": "2.0.0",
+  "private": true,
+  "scripts": {
+    "test": "node tests/geometry.cjs"
+  }
+}

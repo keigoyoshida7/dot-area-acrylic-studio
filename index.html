@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#090909">
+  <meta name="description" content="底面も上面も黄金比の台形に。Dot Areaのアクリル立体を、全12辺と6面の寸法から検討するインタラクティブな設計スタディ。">
+  <title>Dot Area — Acrylic Ratio Studio</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23090909'/%3E%3Cpath d='M10 49L22 17H42L54 49Z' fill='none' stroke='%23eee' stroke-width='2'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="masthead"><a class="wordmark" href="#">Dot Area<span>De-symmetrical Core</span></a><div class="mastnote">ACRYLIC RATIO STUDIO <span>／ 01</span></div><button class="text-button" id="saveConfig">設定を保存 <span>↗</span></button></header>
+  <main>
+    <section class="intro"><div><p class="eyebrow">GEOMETRY, IN PROPORTION</p><h1>アクリルの輪郭</h1><p class="intro-description">黄金比を起点に、すべての辺をたしかめる。</p></div><div class="phi-intro"><span class="phi-symbol">φ</span><div><span class="phi-value">1.6180339887</span><p>比率と寸法が、ひとつの形をつくる。</p></div></div></section>
+    <div class="workspace">
+      <aside class="controls" aria-label="寸法の設定">
+        <div class="section-top"><h2>かたちの設定</h2><span>01 — PARAMETERS</span></div>
+        <div class="preset-grid" role="group" aria-label="形状プリセット"><button class="active" data-preset="golden">黄金比</button><button data-preset="low">低いかたち</button><button data-preset="source">基準サイズ</button><button data-preset="free">自由設計</button></div>
+        <p class="subtle" id="presetDescription">底面・上面も台形に。前幅／後幅をφに。</p>
+        <div class="control-heading"><span>底面と高さ</span><label class="switch-label"><input type="checkbox" id="baseLock" checked><span>幅／奥行 = φ</span></label></div>
+        <label class="plan-lock switch-label"><input type="checkbox" id="basePlanLock" checked><span>底面の前幅／後幅 = φ</span></label>
+        <div id="baseControls"></div>
+        <div class="control-heading"><span>上面の開口</span><label class="switch-label"><input type="checkbox" id="topLock" checked><span>相似を保つ</span></label></div>
+        <div class="ratio-control"><div><label for="taper">上面／底面</label><span id="taperValue">0.618034</span></div><input type="range" id="taper" min="0.1" max="0.95" step="0.001" value="0.618034"><div class="ratio-shortcuts"><button data-taper="0.3819660112501051">1/φ²</button><button class="active" data-taper="0.6180339887498948">1/φ</button><button data-taper="0.5">1/2</button></div></div>
+        <div id="topControls"></div>
+        <div class="derived-width"><span><i>b</i> 上面の後幅</span><strong id="derivedB">—</strong></div><p class="planarity-note">上面の後幅は、4枚の側板が平面になるよう連動します。</p>
+        <div class="plate-options"><span>板として含める面</span><label><input type="checkbox" id="includeBase">底面</label><label><input type="checkbox" id="includeTop">上面</label></div>
+        <details class="advanced"><summary>上面のずれ・板厚 <span>＋</span></summary><div id="advancedControls"></div><label class="density-label">密度の仮定 <span><input id="density" type="number" min="0.1" max="10" step="0.01" value="1.19" aria-label="アクリル密度"> g/cm³</span></label></details>
+        <div class="control-actions"><button class="text-button" id="reset">初期値に戻す</button><label class="load-label">設定を読み込む<input id="loadConfig" type="file" accept="application/json,.json"></label></div>
+        <details class="source-note"><summary>資料と台形の設計条件</summary><p>Dot_Area_Updated.key の6枚目の幅「1.618」、奥行「1」、高さと読める「1」をm単位と仮定した基準サイズです。単位・高さの寸法線は明記されていません。</p><p>底面・上面を台形にする形は今回の設計案です。初期値では前幅／後幅 = φ、前幅／奥行 = φ。上面は底面の1/φ²に相似縮小します。上面寸法・板厚・密度も検討用の仮定です。</p><p>前幅W・後幅B・奥行Dに対し、上面の後幅は b = w − (W − B) × d/D。対応する辺を平行にして側板4枚を平面に保ちます。上面の前幅・奥行を個別に変えると上面の黄金比は変わります。</p><p>底面・上面の板を含める選択は、展開SVGと概算重量に反映されます。板厚・接合・切りしろの補正は別途必要です。</p></details>
+      </aside>
+      <section class="drawing-area" aria-label="形状のプレビュー">
+        <div class="view-toolbar"><div class="tabs" role="tablist" aria-label="表示方向"><button role="tab" aria-selected="true" class="active" data-view="3d">立体</button><button role="tab" aria-selected="false" data-view="front">正面</button><button role="tab" aria-selected="false" data-view="side">側面</button><button role="tab" aria-selected="false" data-view="top">平面</button><button role="tab" aria-selected="false" data-view="panels">板展開</button></div><select id="unit" aria-label="寸法の単位"><option value="mm">mm</option><option value="cm">cm</option><option value="m">m</option></select></div>
+        <div class="stage" id="stage"><div class="stage-title"><span id="viewName">斜視図</span><span id="stageMeta">6 FACES · 12 EDGES</span></div><svg id="drawing" viewBox="0 0 900 690" role="img" aria-label="底面も上面も台形のアクリル立体と各辺の寸法"></svg><div class="stage-bottom"><span id="viewHint">ドラッグして回転</span><div class="zoom"><button id="zoomOut" aria-label="縮小">−</button><span id="zoomValue">100%</span><button id="zoomIn" aria-label="拡大">＋</button><button id="resetView" aria-label="視点を戻す">↺</button></div></div></div>
+        <div class="drawing-options"><label><input type="checkbox" id="showDims" checked>寸法</label><label><input type="checkbox" id="showVertices">頂点</label><label><input type="checkbox" id="showGuides" checked>補助線</label><label><input type="checkbox" id="showAllEdges">全12辺</label><span>単位 <b id="unitLabel">mm</b></span></div>
+        <div class="error-box" id="errors" role="alert" hidden></div>
+        <div class="ratios"><div><span>底面 前幅／後幅</span><strong id="ratioPlan">1.618034</strong><small id="ratioPlanNote">φに一致</small></div><div><span>上面 前幅／後幅</span><strong id="ratioTopPlan">1.618034</strong><small id="ratioTopPlanNote">φに一致</small></div><div><span>底面 前幅／奥行</span><strong id="ratioBase">1.618034</strong><small id="ratioBaseNote">φに一致</small></div><div><span>上面／底面</span><strong id="ratioTop">0.381966</strong><small id="ratioTopNote">1/φ²に一致</small></div></div>
+        <div class="export-bar"><div><p>このかたちを、次の検討へ。</p><span>板の実寸輪郭と寸法一覧を書き出せます。</span></div><div><button id="exportSVG">板輪郭 SVG <span>↓</span></button><button id="exportCSV">寸法 CSV <span>↓</span></button><button class="text-button" id="print">印刷</button></div></div>
+      </section>
+      <aside class="readout" aria-label="計算された寸法">
+        <div class="section-top"><h2>寸法の記録</h2><span>02 — MEASUREMENTS</span></div>
+        <div class="face-selector" role="group" aria-label="6面から選択"><button class="active" data-face="front">前</button><button data-face="right">右</button><button data-face="back">後</button><button data-face="left">左</button><button data-face="base">底面</button><button data-face="top">上面</button></div>
+        <div class="face-heading"><h3 id="faceTitle">前面の台形</h3><span id="faceCount">× 2</span></div>
+        <svg id="faceDrawing" viewBox="0 0 260 160" role="img" aria-label="選択した側板の平面図"></svg>
+        <dl id="faceMeasures" class="measure-list"></dl>
+        <div class="mini-heading">四隅の内角 <span>°</span></div><div id="faceAngles" class="angle-grid"></div>
+        <details class="readout-details" open><summary>全12辺の長さ <span id="edgeUnit">mm</span></summary><div id="edgeTable"></div></details>
+        <details class="readout-details"><summary>全12辺の接合角度 <span>°</span></summary><div id="jointTable"></div><p class="subtle">2面の内側の二面角。均等な留め切りの傾きは 90° − 二面角/2（直角切断からの傾き）。底面・上面との角度は、板を追加する場合の参考値です。加工方法・板厚補正は別途調整。</p></details>
+        <div class="totals"><div><span id="areaLabel">選択した板の面積</span><strong id="area">—</strong></div><div><span>囲まれる体積</span><strong id="volume">—</strong></div><div><span id="massLabel">選択した板の概算重量</span><strong id="mass">—</strong></div><p id="materialNote">重量 = 選択した板の面積 × 板厚 × 密度。接合部を除く概算。寸法は板の基準面で計算。</p></div>
+      </aside>
+    </div>
+    <footer><span>Dot Area <i>／</i> De-symmetrical Core</span><span>幾何のスタディ。黄金比は、制約の選び方で形が変わります。 <a href="https://github.com/keigoyoshida7/dot-area-acrylic-studio" target="_blank" rel="noopener">GitHub ↗</a></span></footer>
+  </main>
+  <div class="toast" id="toast" role="status" hidden></div>
+  <script src="model.js"></script><script src="app.js"></script>
+</body>
+</html>
