@@ -3,9 +3,29 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const PHI = Geometry.PHI, GOLD = 1 / PHI ** 2;
-  const original = {W:1618,B:1618/PHI,D:1618/PHI,H:1000,w:1618*GOLD,b:1618/PHI*GOLD,d:1618/PHI*GOLD,ox:0,oz:0,t:5,density:1.19,baseLock:true,basePlanLock:true,topLock:true,includeBase:false,includeTop:false,taper:GOLD,preset:'golden'};
+  const original = {W:1618,B:1618/PHI,D:1618/PHI,H:1000,w:1618*GOLD,b:1618/PHI*GOLD,d:1618/PHI*GOLD,ox:0,oz:0,t:5,density:1.19,baseLock:true,basePlanLock:true,topLock:true,includeBase:false,includeTop:false,showStone:true,taper:GOLD,preset:'golden'};
   let state = {...original}, unit='mm', view='3d', faceId='front', yaw=-0.56, pitch=0.40, zoom=1, selectedEdge=null, model, isInvalid=false;
   const factors={mm:1,cm:10,m:1000}, labels='ABCDEFGH';
+  const STONE={width:500,height:300,depth:300};
+  const stoneMesh=(()=>{
+    const vertices=[],faces=[],count=12;
+    const rings=[{y:0,x:.64,z:.62},{y:96,x:1,z:1},{y:214,x:.76,z:.73}];
+    rings.forEach((ring,r)=>{
+      for(let i=0;i<count;i++){
+        const a=2*Math.PI*i/count;
+        const rough=r===1?(i%3===0?1:.93+.025*Math.sin(i*2.1)):(.96+.04*Math.cos(i*1.7));
+        vertices.push([Math.cos(a)*STONE.width/2*ring.x*rough,ring.y+(r===2?19*Math.sin(a+.6):r===1?12*Math.sin(a):0),Math.sin(a)*STONE.depth/2*ring.z*rough]);
+      }
+    });
+    for(let r=0;r<rings.length-1;r++)for(let i=0;i<count;i++){
+      const a=r*count+i,b=r*count+(i+1)%count,c=(r+1)*count+(i+1)%count,d=(r+1)*count+i;
+      faces.push([a,b,c],[a,c,d]);
+    }
+    const peak=vertices.push([-28,STONE.height,17])-1;
+    for(let i=0;i<count;i++)faces.push([2*count+i,2*count+(i+1)%count,peak]);
+    faces.push(Array.from({length:count},(_,i)=>i));
+    return {vertices,faces};
+  })();
   const controlDefinitions=[
     ['W','W','底面の前幅',100,4000,1,'baseControls'],['B','B','底面の後幅',20,4000,1,'baseControls'],['D','D','底面の奥行',100,4000,1,'baseControls'],['H','H','垂直の高さ',50,3000,1,'baseControls'],
     ['w','w','上面の前幅',20,4000,1,'topControls'],['d','d','上面の奥行',20,4000,1,'topControls'],
@@ -47,6 +67,7 @@
     document.querySelectorAll('.control-unit').forEach(el=>el.textContent=unit);
     $('baseLock').checked=state.baseLock;$('basePlanLock').checked=state.basePlanLock;$('topLock').checked=state.topLock;
     $('includeBase').checked=state.includeBase;$('includeTop').checked=state.includeTop;
+    syncStoneControls();
     $('derivedB').textContent=length(state.b)+' '+unit;
     $('taper').value=state.taper;$('taper').disabled=!state.topLock;
     $('taperValue').textContent=fmt(state.topLock?state.taper:state.w/state.W,6);
@@ -77,6 +98,32 @@
   const line=(a,b,cls='drawing-edge',extra='')=>`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" class="${cls}" ${extra}/>`;
   const text=(p,value,cls='drawing-dim',extra='')=>`<text x="${p[0]}" y="${p[1]}" text-anchor="middle" class="${cls}" ${extra}>${esc(value)}</text>`;
   const points=a=>a.map(p=>p[0]+','+p[1]).join(' ');
+  function syncStoneControls(){
+    $('showStone').checked=state.showStone;
+    $('stoneStatus').textContent=state.showStone?'ON':'OFF';
+    $('stoneSize').textContent='高さ '+length(STONE.height)+' × 幅 '+length(STONE.width)+' × 奥行 '+length(STONE.depth)+' '+unit;
+    let outside=false;
+    if(model&&state.showStone)outside=model.allFaces.some(face=>{
+      const origin=model.vertices[face.indices[0]];
+      return stoneMesh.vertices.some(p=>face.normal.reduce((sum,n,i)=>sum+n*(p[i]-origin[i]),0)>1e-6);
+    });
+    $('stoneNote').textContent=outside?'石がアクリルの範囲を超えています。':'底面の中央に床置きした概形。石の寸法は固定です。';
+    $('stoneNote').classList.toggle('stone-outside',outside);
+  }
+  function drawStone(project){
+    const projected=stoneMesh.vertices.map(project);
+    const items=stoneMesh.faces.map(indices=>{
+      const [a,b,c]=indices.slice(0,3).map(i=>stoneMesh.vertices[i]);
+      const u=b.map((v,i)=>v-a[i]),v=c.map((n,i)=>n-a[i]);
+      let normal=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];
+      const centroid=indices.reduce((sum,i)=>sum.map((n,k)=>n+stoneMesh.vertices[i][k]/indices.length),[0,0,0]);
+      if(normal.reduce((sum,n,i)=>sum+n*(centroid[i]-(i===1?130:0)),0)<0)normal=normal.map(n=>-n);
+      const norm=Math.hypot(...normal)||1,light=[-.36,.85,-.38];
+      const shade=Math.round(119+Math.max(0,normal.reduce((sum,n,i)=>sum+n/norm*light[i],0))*72);
+      return {indices,depth:indices.reduce((sum,i)=>sum+projected[i][2]/indices.length,0),shade};
+    }).sort((a,b)=>b.depth-a.depth);
+    return `<g id="stoneObject" data-width-mm="500" data-height-mm="300" data-depth-mm="300" data-world-vertices="${esc(JSON.stringify(stoneMesh.vertices))}" aria-label="中央の石、高さ300 幅500 奥行300ミリメートル" pointer-events="none"><title>石の概形 — 高さ300 × 幅500 × 奥行300 mm</title>`+items.map(({indices,shade})=>`<polygon points="${points(indices.map(i=>projected[i]))}" fill="rgb(${shade},${shade-3},${shade-9})" stroke="#9f9c92" stroke-opacity=".16" stroke-width=".5" vector-effect="non-scaling-stroke"/>`).join('')+'</g>';
+  }
   function dimension(a,b,value,offset=27,center=[450,335]){
     let dx=b[0]-a[0],dy=b[1]-a[1],n=Math.hypot(dx,dy);if(n<1)return '';
     let nx=-dy/n,ny=dx/n;const m=[(a[0]+b[0])/2,(a[1]+b[1])/2];if((m[0]-center[0])*nx+(m[1]-center[1])*ny<0){nx=-nx;ny=-ny;}
@@ -86,6 +133,7 @@
   function draw(){
     if(!model)return;
     const geometryState=model.state;
+    syncStoneControls();
     const mobile=window.innerWidth<=760;
     $('stage').classList.toggle('panel-view',view==='panels');
     $('drawing').setAttribute('viewBox',mobile?(view==='panels'?'0 65 900 1000':'80 35 740 610'):'0 0 900 690');
@@ -122,6 +170,7 @@
       const fill=f.id===faceId&&visible(f)?'#ded8c4':'#d9d5c8';
       svg+=`<polygon data-select-face="${f.id}" points="${points(f.indices.map(i=>p[i]))}" fill="${fill}" fill-opacity="${f.id===faceId&&visible(f)?'.065':'.018'}" stroke="none" style="cursor:pointer"/>`;
     });
+    if(state.showStone)svg+=drawStone(project);
     model.edges.forEach(e=>{
       const adjacent=model.allFaces.filter(f=>f.indices.includes(e.a)&&f.indices.includes(e.b));
       const hidden=!adjacent.some(visible);
@@ -170,7 +219,7 @@
     const countPlates=4+Number(state.includeBase)+Number(state.includeTop);$('areaLabel').textContent=countPlates+'枚の板の面積';$('massLabel').textContent=countPlates+'枚の板の概算重量';
   }
   function preset(type){
-    state={...original,preset:type};
+    state={...original,preset:type,showStone:state.showStone};
     if(type==='low')state.H=state.W*GOLD;
     if(type==='source'){state.baseLock=false;state.D=1000;}
     if(type==='free'){state.baseLock=false;state.basePlanLock=false;state.topLock=false;state.ox=100;state.oz=-60;}
@@ -208,6 +257,7 @@
     const next={...original};controlDefinitions.forEach(([key])=>{if(key==='B'&&data.version===1){next.B=data.state.W;return;}if(typeof data.state[key]!=='number'||!Number.isFinite(data.state[key]))throw Error('寸法の数値を確認してください。');next[key]=data.state[key];});
     if(typeof data.state.density!=='number'||!Number.isFinite(data.state.density))throw Error('密度を確認してください。');
     next.density=data.state.density;next.baseLock=data.state.baseLock===true;next.basePlanLock=data.version===2&&data.state.basePlanLock===true;next.topLock=data.state.topLock===true;next.includeBase=data.state.includeBase===true;next.includeTop=data.state.includeTop===true;next.taper=typeof data.state.taper==='number'?data.state.taper:GOLD;
+    next.showStone=data.state.showStone!==false;
     if(!Number.isFinite(next.taper)||next.taper<=0||next.taper>1)throw Error('上面の比率を確認してください。');
     if(next.baseLock)next.D=next.W/PHI;if(next.basePlanLock)next.B=next.W/PHI;if(next.topLock){next.w=next.W*next.taper;next.d=next.D*next.taper;}next.b=next.w-(next.W-next.B)*next.d/next.D;
     const check=Geometry.validate(next);if(!check.valid)throw Error(check.errors.join(' '));
@@ -227,6 +277,7 @@
   $('density').addEventListener('input',event=>{if(event.target.value===''){showError(['密度を入力してください。']);return;}state.density=Number(event.target.value);markCustom();update();});
   $('unit').addEventListener('change',event=>{unit=event.target.value;update();});
   ['showDims','showVertices','showGuides','showAllEdges'].forEach(id=>$(id).addEventListener('change',draw));
+  $('showStone').addEventListener('change',event=>{state.showStone=event.target.checked;draw();saveLocal();});
   $('reset').addEventListener('click',()=>{preset('golden');toast('初期値に戻しました。');});
   $('zoomIn').addEventListener('click',()=>{zoom=Math.min(1.7,zoom+.1);draw();});$('zoomOut').addEventListener('click',()=>{zoom=Math.max(.5,zoom-.1);draw();});$('resetView').addEventListener('click',()=>{yaw=-.56;pitch=.4;zoom=1;draw();});
   $('exportSVG').addEventListener('click',exportSVG);$('exportCSV').addEventListener('click',exportCSV);$('print').addEventListener('click',()=>{document.querySelectorAll('.readout-details').forEach(d=>d.open=true);window.print();});
