@@ -15,7 +15,7 @@
     <div class="workspace">
       <aside class="controls" aria-label="寸法の設定">
         <div class="section-top"><h2>かたちの設定</h2><span>01 — PARAMETERS</span></div>
-        <div class="preset-grid" role="group" aria-label="形状プリセット"><button class="active" data-preset="golden">黄金比</button><button data-preset="low">低いかたち</button><button data-preset="source">基準サイズ</button><button data-preset="free">自由設計</button></div>
+        <div class="preset-grid" role="group" aria-label="形状プリセット"><button class="active" data-preset="golden">黄金比</button><button data-preset="low">低いかたち</button><button data-preset="source">基準サイズ</button><button data-preset="free">自由設計</button><button data-preset="slope35" aria-label="立体の斜めの4辺と底面の角度が35度">斜辺 35°</button><button data-preset="front35" aria-label="正面図の左右の斜線が底辺に対して35度">正面 35°</button></div>
         <button id="openFil" class="fil-open">FIL 搬入上限を算出 <span>↗</span></button>
         <p class="subtle" id="presetDescription">底面・上面も台形に。前幅／後幅をφに。</p>
         <div class="control-heading"><span>底面と高さ</span><label class="switch-label"><input type="checkbox" id="baseLock" checked><span>幅／奥行 = φ</span></label></div>
@@ -35,6 +35,7 @@
         <div class="stage" id="stage"><div class="stage-title"><span id="viewName">斜視図</span><span id="stageMeta">6 FACES · 12 EDGES</span></div><svg id="drawing" viewBox="0 0 900 690" role="img" aria-label="底面も上面も台形のアクリル立体と各辺の寸法"></svg><div class="stage-bottom"><span id="viewHint">ドラッグして回転</span><div class="zoom"><button id="zoomOut" aria-label="縮小">−</button><span id="zoomValue">100%</span><button id="zoomIn" aria-label="拡大">＋</button><button id="resetView" aria-label="視点を戻す">↺</button></div></div></div>
         <div class="drawing-options"><label><input type="checkbox" id="showDims" checked>寸法</label><label><input type="checkbox" id="showVertices">頂点</label><label><input type="checkbox" id="showGuides" checked>補助線</label><label><input type="checkbox" id="showAllEdges">全12辺</label><span>単位 <b id="unitLabel">mm</b></span></div>
         <div class="stone-control"><label for="showStone"><input type="checkbox" id="showStone" checked><span>石を表示</span><b id="stoneStatus">ON</b></label><span id="stoneSize">高さ 300 × 幅 500 × 奥行 300 mm</span><small id="stoneNote">底面の中央に床置きした概形。石の寸法は固定です。</small></div>
+        <section class="slope-readout" aria-label="立ち上がる辺の角度"><div class="slope-heading"><span>斜辺と底面の角度</span><small>立体の辺と水平面</small></div><div id="slopeAngles" class="slope-angle-grid"></div><p id="slopeNote"></p></section>
         <div class="error-box" id="errors" role="alert" hidden></div>
         <div class="ratios"><div><span>底面 前幅／後幅</span><strong id="ratioPlan">1.618034</strong><small id="ratioPlanNote">φに一致</small></div><div><span>上面 前幅／後幅</span><strong id="ratioTopPlan">1.618034</strong><small id="ratioTopPlanNote">φに一致</small></div><div><span>底面 前幅／奥行</span><strong id="ratioBase">1.618034</strong><small id="ratioBaseNote">φに一致</small></div><div><span>上面／底面</span><strong id="ratioTop">0.381966</strong><small id="ratioTopNote">1/φ²に一致</small></div></div>
         <div class="export-bar"><div><p>このかたちを、次の検討へ。</p><span>板の実寸輪郭と寸法一覧を書き出せます。</span></div><div><button id="exportSVG">板輪郭 SVG <span>↓</span></button><button id="exportCSV">寸法 CSV <span>↓</span></button><button class="text-button" id="print">印刷</button></div></div>

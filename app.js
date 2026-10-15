@@ -76,7 +76,7 @@
     $('density').value=state.density;
     document.querySelectorAll('[data-taper]').forEach(el=>{el.disabled=!state.topLock;el.classList.toggle('active',Math.abs(+el.dataset.taper-state.taper)<1e-6&&state.topLock);});
     document.querySelectorAll('[data-preset]').forEach(el=>el.classList.toggle('active',el.dataset.preset===state.preset));
-    const descriptions={golden:'底面・上面の前幅／後幅をφに。上面は底面の1/φ²。',low:'底面・上面の黄金比を保ち、高さを前幅の1/φ²に。',source:'資料の幅・奥行・高さを仮設定。台形は今回の設計案。',free:'寸法を個別に指定。側板の平面を保つよう上面の後幅が連動。',fil:'FILの開口・展示室の条件から算出した上限候補。曲がり角・階段は未判定です。',custom:'寸法を調整中。チェックした比率と側板の平面を保ちます。'};
+    const descriptions={golden:'底面・上面の前幅／後幅をφに。上面は底面の1/φ²。',low:'底面・上面の黄金比を保ち、高さを前幅の1/φ²に。',source:'資料の幅・奥行・高さを仮設定。台形は今回の設計案。',free:'寸法を個別に指定。側板の平面を保つよう上面の後幅が連動。',slope35:'4本の斜辺と底面を35°に。黄金比の台形を保ち、高さと上面の前後位置を調整。',front35:'正面図の左右の斜線を底辺から35°に。底面・上面の黄金比と中心位置を保ちます。',fil:'FILの開口・展示室の条件から算出した上限候補。曲がり角・階段は未判定です。',custom:'寸法を調整中。チェックした比率と側板の平面を保ちます。'};
     $('presetDescription').textContent=descriptions[state.preset]||descriptions.custom;
     $('unitLabel').textContent=$('edgeUnit').textContent=unit;
   }
@@ -87,7 +87,13 @@
     isInvalid=false;model=Geometry.calculate(state);$('errors').hidden=!check.warnings.length;$('errors').textContent=check.warnings.join(' ');
     document.querySelectorAll('#exportSVG,#exportCSV,#saveConfig,#print').forEach(el=>el.disabled=false);
     $('stageMeta').textContent=view==='panels'?'TRUE SIZE · 6 FACES':'6 FACES · 12 EDGES';
-    draw();readout();ratios();saveLocal();if($('filDialog').open)renderFil();
+    draw();readout();ratios();slopeReadout();saveLocal();if($('filDialog').open)renderFil();
+  }
+  function slopeReadout(){
+    const sides=model.edges.filter(edge=>edge.kind==='side');
+    $('slopeAngles').innerHTML=sides.map(edge=>`<div class="${Math.abs(edge.inclination-35)<1e-8?'at-target':''}"><span>${edge.id}</span><strong>${fmt(edge.inclination,2)}<small>°</small></strong></div>`).join('');
+    const front=sides.filter(edge=>edge.id==='AE'||edge.id==='BF');
+    $('slopeNote').textContent='正面図の投影角度：'+front.map(edge=>edge.id+' '+fmt(edge.frontInclination,2)+'°').join(' ／ ')+'。表示方向で斜線の見え方が変わります。';
   }
   function filOptions(){return {clearance:state.filClearance,staging:state.filStaging,pose:state.filPose};}
   function renderFil(){
@@ -252,6 +258,7 @@
     if(type==='low')state.H=state.W*GOLD;
     if(type==='source'){state.baseLock=false;state.D=1000;}
     if(type==='free'){state.baseLock=false;state.basePlanLock=false;state.topLock=false;state.ox=100;state.oz=-60;}
+    if(type==='slope35'||type==='front35')state=Geometry.slopePreset(state,type==='slope35'?'spatial':'front');
     constrain();selectedEdge=null;update();
   }
   function download(name,content,type){const url=URL.createObjectURL(new Blob([content],{type}));const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
@@ -274,6 +281,7 @@
     add('入力','density','密度の仮定',state.density,'g/cm³','仮定値');
     add('比率','底面','前幅/後幅',state.W/state.B,'');add('比率','上面','前幅/後幅',state.w/state.b,'');add('比率','底面','前幅/奥行',state.W/state.D,'');add('比率','高さ','前幅/垂直高さ',state.W/state.H,'');add('比率','上面','上面前幅/底面前幅',state.w/state.W,'');add('比率','上面','上面奥行/底面奥行',state.d/state.D,'');
     model.edges.forEach(e=>add('全12辺',e.id,'長さ',e.length,'mm'));
+    model.edges.filter(e=>e.kind==='side').forEach(e=>{add('斜辺の角度',e.id,'底面との角度',e.inclination,'°','立体の辺と水平面の角度');add('斜辺の角度',e.id,'正面投影の角度',e.frontInclination,'°','正面図での水平線との角度');});
     model.allFaces.forEach(f=>{const plan=['base','top'].includes(f.id),section=plan?'台形の平面':'側板';add(section,f.name,'下底',f.bottom,'mm');add(section,f.name,'上底',f.top,'mm');add(section,f.name,'左斜辺',f.edgeLengths[3],'mm');add(section,f.name,'右斜辺',f.edgeLengths[1],'mm');add(section,f.name,plan?'垂直奥行':'斜高',f.slantHeight,'mm');add(section,f.name,'上底左端のオフセット',f.topOffset,'mm');f.angles.forEach((a,i)=>add(section,f.name,labels[f.indices[i]]+'内角',a,'°'));f.diagonals.forEach((d,i)=>add(section,f.name,'対角線'+(i+1),d,'mm'));add(section,f.name,'面積',f.area/1e6,'m²');if(!plan){add(section,f.name,'鉛直からの傾き',f.lean,'°');add(section,f.name,'底面との内角',f.bottomDihedral,'°');}else add(section,f.name,'板として含める',f.id==='base'?String(state.includeBase):String(state.includeTop),'');});
     model.allJoints.forEach(j=>{add('接合',j.id,'二面角',j.angle,'°');add('接合',j.id,'均等留め角',j.bevel,'°','直角切断からの傾き。板厚補正なし。開口面の角度は板追加時の参考');});
     add('対角線','底面','対角線',model.bottomDiagonal,'mm');add('対角線','上面','対角線',model.topDiagonal,'mm');model.spaceDiagonals.forEach(d=>add('対角線',d.id,'空間対角線',d.length,'mm'));
@@ -299,7 +307,7 @@
     if(next.baseLock)next.D=next.W/PHI;if(next.basePlanLock)next.B=next.W/PHI;if(next.topLock){next.w=next.W*next.taper;next.d=next.D*next.taper;}next.b=next.w-(next.W-next.B)*next.d/next.D;
     const check=Geometry.validate(next);if(!check.valid)throw Error(check.errors.join(' '));
     Transport.calculate(next,{clearance:next.filClearance,staging:next.filStaging,pose:next.filPose});
-    next.preset=['golden','source','low','free','custom','fil'].includes(data.state.preset)?data.state.preset:'custom';state=next;unit=factors[data.unit]?data.unit:'mm';$('unit').value=unit;
+    next.preset=['golden','source','low','free','slope35','front35','custom','fil'].includes(data.state.preset)?data.state.preset:'custom';state=next;unit=factors[data.unit]?data.unit:'mm';$('unit').value=unit;
   }
   buildControls();
   Transport.POSES.forEach(pose=>$('filPose').insertAdjacentHTML('beforeend',`<option value="${pose.id}">${esc(pose.name)}</option>`));

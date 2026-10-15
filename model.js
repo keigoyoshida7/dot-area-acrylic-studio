@@ -106,7 +106,13 @@
     ];
     var pairs = [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]];
     var edges = pairs.map(function (pair, index) {
-      return { id: String.fromCharCode(65 + pair[0]) + String.fromCharCode(65 + pair[1]), a: pair[0], b: pair[1], length: distance(vertices[pair[0]], vertices[pair[1]]), kind: index < 4 ? 'bottom' : index < 8 ? 'top' : 'side' };
+      var edge = { id: String.fromCharCode(65 + pair[0]) + String.fromCharCode(65 + pair[1]), a: pair[0], b: pair[1], length: distance(vertices[pair[0]], vertices[pair[1]]), kind: index < 4 ? 'bottom' : index < 8 ? 'top' : 'side' };
+      if (edge.kind === 'side') {
+        var delta = sub(vertices[pair[1]], vertices[pair[0]]);
+        edge.inclination = Math.atan2(Math.abs(delta[1]), Math.hypot(delta[0], delta[2])) * DEG;
+        edge.frontInclination = Math.atan2(Math.abs(delta[1]), Math.abs(delta[0])) * DEG;
+      }
+      return edge;
     });
     var faces = [
       { id: 'front', name: '前面', indices: [0, 1, 5, 4] },
@@ -157,5 +163,28 @@
       warnings: check.warnings
     };
   }
-  return { PHI: PHI, calculate: calculate, validate: validate };
+  function slopePreset(state, mode) {
+    if (mode !== 'spatial' && mode !== 'front') throw new RangeError('35°パターンは実際の斜辺または正面投影から選択してください。');
+    var s = calculate(state).state;
+    var k = s.w / s.W;
+    if (!(k > 0 && k < 1) || Math.abs(s.d / s.D - k) > 1e-9 || Math.abs(s.b / s.B - k) > 1e-9) {
+      throw new RangeError('35°パターンには、底面より小さい相似形の上面が必要です。上面の幅と奥行の比率をそろえてください。');
+    }
+    var result = Object.assign({}, state, { B: s.B, b: s.b, ox: 0, oz: 0 });
+    var tangent = Math.tan(35 / DEG);
+    if (mode === 'spatial') {
+      // Every isosceles trapezoid is cyclic. Homothety about its circumcenter
+      // gives equal horizontal travel for all four corresponding corner edges.
+      var centerZ = (s.B * s.B - s.W * s.W) / (8 * s.D);
+      var radius = Math.hypot(s.W / 2, -s.D / 2 - centerZ);
+      result.oz = (1 - k) * centerZ;
+      result.H = (1 - k) * radius * tangent;
+    } else {
+      result.H = Math.abs(s.W - s.w) / 2 * tangent;
+    }
+    var check = validate(result);
+    if (!check.valid) throw new RangeError('この底面では35°パターンが成立しません。' + check.errors.join(' '));
+    return result;
+  }
+  return { PHI: PHI, calculate: calculate, validate: validate, slopePreset: slopePreset };
 });
