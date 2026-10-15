@@ -186,5 +186,17 @@
     if (!check.valid) throw new RangeError('この底面では32.5°パターンが成立しません。' + check.errors.join(' '));
     return result;
   }
-  return { PHI: PHI, calculate: calculate, validate: validate, slopePreset: slopePreset };
+  function elevations(state, ceilingHeight) {
+    var lower = state && state.baseElevation !== undefined ? state.baseElevation : 0;
+    var height = state && state.H;
+    if (ceilingHeight === undefined) ceilingHeight = 2650;
+    if (typeof lower !== 'number' || !Number.isFinite(lower) || lower < 0) throw new RangeError('底面の床からの高さは 0 以上の有限の数値にしてください。');
+    if (typeof height !== 'number' || !Number.isFinite(height) || height <= 0) throw new RangeError('本体の高さは 0 より大きい有限の数値にしてください。');
+    if (typeof ceilingHeight !== 'number' || !Number.isFinite(ceilingHeight) || ceilingHeight <= 0) throw new RangeError('天井の床からの高さは 0 より大きい有限の数値にしてください。');
+    var upper = lower + height;
+    if (!Number.isFinite(upper)) throw new RangeError('上面の床からの高さを有限の値で計算できません。寸法を確認してください。');
+    var ceilingGap = ceilingHeight - upper;
+    return { lower: lower, upper: upper, height: height, ceilingHeight: ceilingHeight, ceilingGap: ceilingGap, fitsCeiling: ceilingGap >= 0 };
+  }
+  return { PHI: PHI, calculate: calculate, validate: validate, slopePreset: slopePreset, elevations: elevations };
 });

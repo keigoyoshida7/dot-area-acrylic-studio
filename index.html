@@ -36,6 +36,15 @@
         <div class="drawing-options"><label><input type="checkbox" id="showDims" checked>寸法</label><label><input type="checkbox" id="showVertices">頂点</label><label><input type="checkbox" id="showGuides" checked>補助線</label><label><input type="checkbox" id="showAllEdges">全12辺</label><span>単位 <b id="unitLabel">mm</b></span></div>
         <div class="stone-control"><label for="showStone"><input type="checkbox" id="showStone" checked><span>石を表示</span><b id="stoneStatus">ON</b></label><span id="stoneSize">高さ 300 × 幅 500 × 奥行 300 mm</span><small id="stoneNote">底面の中央に床置きした概形。石の寸法は固定です。</small></div>
         <section class="slope-readout" aria-label="立ち上がる辺の角度"><div class="slope-heading"><span>斜辺と底面の角度</span><small>立体の辺と水平面</small></div><div id="slopeAngles" class="slope-angle-grid"></div><p id="slopeNote"></p></section>
+        <section class="placement-panel" aria-labelledby="placementTitle">
+          <div class="placement-heading"><div><p class="eyebrow">HEIGHT FROM FLOOR</p><h2 id="placementTitle">床から、ふたつの面まで。</h2></div><span>FIL 天井高 265 cm</span></div>
+          <div class="placement-control"><label for="baseElevation">下の面（底面）の設置高さ <span><input id="baseElevation" type="number" min="0" step="0.1" value="0"> cm</span></label><div><button id="placementFloor">床置きにする</button><button id="placementCeiling">上面を天井に合わせる</button></div></div>
+          <p class="placement-assumption">設置高さは検討値です。初期値の0 cmは、底面を床に置く仮定です。</p>
+          <div class="placement-metrics" aria-live="polite"><div><span>下の面（底面）</span><strong id="elevationLower">—</strong><small>床から</small></div><div><span>上の面（上面）</span><strong id="elevationUpper">—</strong><small>床から</small></div><div><span>上面から天井まで</span><strong id="ceilingGap">—</strong><small id="elevationStatus">—</small></div></div>
+          <svg id="elevationDrawing" viewBox="0 0 600 280" role="img" aria-label="床と天井を基準にしたアクリルの立面図"></svg>
+          <div class="height-reply-heading"><label for="heightReply">相手に伝える数値</label><button id="copyHeightReply">文章をコピー <span>↗</span></button></div><textarea id="heightReply" rows="3" readonly aria-label="床からの高さを伝える文章"></textarea>
+          <p class="placement-footnote">上面の高さ＝底面の設置高さ＋立体の垂直高さ。寸法は板の基準面で、板厚・吊り金具の補正は含みません。石は展示室の床に置いたままです。</p>
+        </section>
         <div class="error-box" id="errors" role="alert" hidden></div>
         <div class="ratios"><div><span>底面 前幅／後幅</span><strong id="ratioPlan">1.618034</strong><small id="ratioPlanNote">φに一致</small></div><div><span>上面 前幅／後幅</span><strong id="ratioTopPlan">1.618034</strong><small id="ratioTopPlanNote">φに一致</small></div><div><span>底面 前幅／奥行</span><strong id="ratioBase">1.618034</strong><small id="ratioBaseNote">φに一致</small></div><div><span>上面／底面</span><strong id="ratioTop">0.381966</strong><small id="ratioTopNote">1/φ²に一致</small></div></div>
         <div class="export-bar"><div><p>このかたちを、次の検討へ。</p><span>板の実寸輪郭と寸法一覧を書き出せます。</span></div><div><button id="exportSVG">板輪郭 SVG <span>↓</span></button><button id="exportCSV">寸法 CSV <span>↓</span></button><button class="text-button" id="print">印刷</button></div></div>
@@ -58,7 +67,7 @@
   <dialog id="filDialog" aria-labelledby="filTitle">
     <div class="fil-dialog-header"><div><p class="eyebrow">FIL ／ ASSEMBLED TRANSPORT</p><h2 id="filTitle">搬入寸法の上限試算</h2><p>組み立てた状態で搬入。現在のかたちの比率を保って算出します。</p></div><button id="closeFil" aria-label="搬入試算を閉じる">閉じる ×</button></div>
     <div class="fil-dialog-body">
-      <div class="fil-scope"><span>経路全体は未判定</span><p>直線の開口断面と展示室に収まる上限です。直角の旋回、階段の勾配・踊り場、姿勢の持ち替えは別途確認が必要です。</p></div>
+      <div class="fil-scope"><span>経路全体は未判定</span><p>直線の開口断面と展示室に収まる上限です。直角の旋回、階段の勾配・踊り場、姿勢の持ち替えは別途確認が必要です。室内の高さは底面の設置高さと上下の余白を差し引きます。</p></div>
       <div class="fil-options"><label class="fil-pose-label" for="filPose">搬入時の向き<select id="filPose"><option value="auto">6方向から最大の候補を選ぶ</option></select></label><label for="filClearance">片側の余白 <span><input id="filClearance" type="number" min="0" max="500" step="1" value="20"> mm</span><small>上下左右・奥行の両端から各々差し引きます。</small></label></div>
       <label class="fil-staging"><input id="filStaging" type="checkbox" checked><span>ドアを抜けた後は、向きを変えずに直進する仮定 <small>進行方向の長さを、対面の壁までの1.36 mから余白を差し引いた値に制限。</small></span></label>
       <p class="fil-error" id="filError" role="alert" hidden></p>
@@ -67,7 +76,7 @@
         <div class="fil-metrics"><div><span>幅</span><strong id="filMaxW">—</strong><small id="filMaxWm">—</small></div><div><span>奥行</span><strong id="filMaxD">—</strong><small id="filMaxDm">—</small></div><div><span>高さ</span><strong id="filMaxH">—</strong><small id="filMaxHm">—</small></div></div>
         <div class="fil-pose-result"><div><span>この候補の搬入姿勢</span><strong id="filPoseName">—</strong><p id="filTransportSize">—</p></div><div><span>寸法を制限している箇所</span><strong id="filBinding">—</strong></div></div>
         <details class="fil-details"><summary>6方向の候補を比較</summary><div id="filPoseRows"></div></details>
-        <div class="fil-actions"><p>形状の比率と板厚を保って反映します。石は高さ300 × 幅500 × 奥行300 mmのままです。</p><button id="applyFil">この上限候補を適用 <span>↗</span></button></div>
+        <div class="fil-actions"><p>形状の比率・板厚・底面の設置高さを保って反映します。石は高さ300 × 幅500 × 奥行300 mmのままです。</p><button id="applyFil">この上限候補を適用 <span>↗</span></button></div>
       </section>
       <section class="fil-measurements"><h3>FIL 寸法メモ <small>ユーザー提供・単位 m</small></h3><div class="fil-table-wrap"><table><thead><tr><th>場所</th><th>幅 × 高さ</th><th>候補との差：横／縦の合計</th></tr></thead><tbody id="filOpeningRows"></tbody></table></div><dl class="fil-room"><div><dt>Spatial Audio スペース</dt><dd>幅6.64 × 奥行4.62 × 高さ2.65 m</dd></div><div><dt>ドアから対面の壁まで</dt><dd>直線1.36 m（上記の仮定に使用）</dd></div><div><dt>直角の曲がり角</dt><dd>角―角1.50 m <b>旋回未判定</b></dd></div></dl><p class="fil-footnote">角―角1.50 mを通過幅や旋回半径として扱うことはできません。両側の通路幅・踊り場の平面図が分かれば、旋回の検討を追加できます。計算対象はアクリルの基準面。板厚のはみ出し・梱包・台車は未算入です。</p></section>
     </div>

@@ -34,7 +34,7 @@
     var result = Object.assign({}, state);
     ['W', 'B', 'D', 'H', 'w', 'd', 'ox', 'oz'].forEach(function (key) { result[key] = normalized[key] * scale; });
     result.b = result.w - (result.W - result.B) * result.d / result.D;
-    // Thickness, density, stone dimensions, visibility and application flags are unchanged.
+    // Installation elevation, thickness, density, stone dimensions and application flags are unchanged.
     return result;
   }
   function calculate(state, options) {
@@ -46,11 +46,14 @@
     var poseId = options.pose === undefined ? 'auto' : options.pose;
     if (poseId !== 'auto' && !POSES.some(function (pose) { return pose.id === poseId; })) fail('搬送姿勢を一覧から選択してください。');
     var geometry = Geometry.calculate(state);
+    var installation = Geometry.elevations(state, FIL.room.height);
     var minimum = [0, 1, 2].map(function (axis) { return Math.min.apply(Math, geometry.vertices.map(function (vertex) { return vertex[axis]; })); });
     var maximum = [0, 1, 2].map(function (axis) { return Math.max.apply(Math, geometry.vertices.map(function (vertex) { return vertex[axis]; })); });
     var bounds = { width: maximum[0] - minimum[0], depth: maximum[2] - minimum[2], height: maximum[1] - minimum[1], min: minimum, max: maximum };
     var dimensions = { W: bounds.width, D: bounds.depth, H: bounds.height };
     var c2 = 2 * clearance;
+    var roomHeightAvailable = FIL.room.height - installation.lower - c2;
+    if (!(roomHeightAvailable > 0)) fail('底面の設置高さと上下の余裕を差し引くと、展示室の有効高さが残りません。');
     function limit(id, label, available, dimension, kind, axis) {
       if (!(available > 0) || !(dimension > 0) || !Number.isFinite(available / dimension)) fail('余裕を差し引いた有効寸法が成立しません。寸法と余裕を確認してください。');
       return { id: id, label: label, scale: available / dimension, available: available, dimension: dimension, kind: kind, axis: axis };
@@ -58,7 +61,7 @@
     var roomLimits = [
       limit('room-width', '展示室の幅（正立）', FIL.room.width - c2, bounds.width, 'room', 'W'),
       limit('room-depth', '展示室の奥行（正立）', FIL.room.depth - c2, bounds.depth, 'room', 'D'),
-      limit('room-height', '展示室の高さ（正立）', FIL.room.height - c2, bounds.height, 'room', 'H')
+      limit('room-height', '展示室の高さ（設置高さ・上下の余裕を控除）', roomHeightAvailable, bounds.height, 'room', 'H')
     ];
     var roomLimit = Math.min.apply(Math, roomLimits.map(function (entry) { return entry.scale; }));
     var orientations = POSES.map(function (pose) {

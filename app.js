@@ -3,8 +3,8 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const PHI = Geometry.PHI, GOLD = 1 / PHI ** 2;
-  const original = {W:1618,B:1618/PHI,D:1618/PHI,H:1000,w:1618*GOLD,b:1618/PHI*GOLD,d:1618/PHI*GOLD,ox:0,oz:0,t:5,density:1.19,baseLock:true,basePlanLock:true,topLock:true,includeBase:false,includeTop:false,showStone:true,filClearance:20,filStaging:true,filPose:'auto',filApplied:false,taper:GOLD,preset:'golden'};
-  let state = {...original}, unit='mm', view='3d', faceId='front', yaw=-0.56, pitch=0.40, zoom=1, selectedEdge=null, model, isInvalid=false;
+  const original = {W:1618,B:1618/PHI,D:1618/PHI,H:1000,w:1618*GOLD,b:1618/PHI*GOLD,d:1618/PHI*GOLD,ox:0,oz:0,t:5,density:1.19,baseLock:true,basePlanLock:true,topLock:true,includeBase:false,includeTop:false,showStone:true,baseElevation:0,filClearance:20,filStaging:true,filPose:'auto',filApplied:false,taper:GOLD,preset:'golden'};
+  let state = {...original}, unit='mm', view='3d', faceId='front', yaw=-0.56, pitch=0.40, zoom=1, selectedEdge=null, model, isInvalid=false, displayBaseElevation=0;
   const factors={mm:1,cm:10,m:1000}, labels='ABCDEFGH';
   const STONE={width:500,height:300,depth:300};
   const stoneMesh=(()=>{
@@ -38,7 +38,7 @@
   const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   function toast(message){$('toast').textContent=message;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,3500);}
   function constrain(){if(state.baseLock)state.D=state.W/PHI;if(state.basePlanLock)state.B=state.W/PHI;if(state.topLock){state.w=state.W*state.taper;state.d=state.D*state.taper;}state.b=state.w-(state.W-state.B)*state.d/state.D;}
-  function saveLocal(){try{localStorage.setItem('dot-area-acrylic-v2',JSON.stringify({version:2,state,unit}));}catch(_){}}
+  function saveLocal(){if(isInvalid)return;try{localStorage.setItem('dot-area-acrylic-v2',JSON.stringify({version:2,state,unit}));}catch(_){}}
   function markCustom(){state.preset='custom';state.filApplied=false;}
   function buildControls(){
     controlDefinitions.forEach(([key,symbol,label,min,max,step,parent])=>{
@@ -65,6 +65,7 @@
       if(key==='oz'){range.min=-(state.D-state.d)/2;range.max=(state.D-state.d)/2;}
     });
     document.querySelectorAll('.control-unit').forEach(el=>el.textContent=unit);
+    if(skip!=='baseElevation')$('baseElevation').value=Number((state.baseElevation/10).toFixed(4));
     $('baseLock').checked=state.baseLock;$('basePlanLock').checked=state.basePlanLock;$('topLock').checked=state.topLock;
     $('includeBase').checked=state.includeBase;$('includeTop').checked=state.includeTop;
     $('openFil').classList.toggle('active',state.filApplied);
@@ -80,14 +81,31 @@
     $('presetDescription').textContent=descriptions[state.preset]||descriptions.custom;
     $('unitLabel').textContent=$('edgeUnit').textContent=unit;
   }
-  function showError(errors){isInvalid=true;$('errors').hidden=false;$('errors').textContent=errors.join(' ');$('stageMeta').textContent='入力を確認してください · 図は前の有効な寸法';document.querySelectorAll('#exportSVG,#exportCSV,#saveConfig,#print').forEach(el=>el.disabled=true);}
+  function showError(errors){isInvalid=true;$('errors').hidden=false;$('errors').textContent=errors.join(' ');$('stageMeta').textContent='入力を確認してください · 図は前の有効な寸法';document.querySelectorAll('#exportSVG,#exportCSV,#saveConfig,#print,#copyHeightReply,#placementCeiling').forEach(el=>el.disabled=true);['elevationLower','elevationUpper','ceilingGap'].forEach(id=>$(id).textContent='—');$('elevationStatus').textContent='入力を確認してください';$('heightReply').value='寸法と設置高さの入力を確認してください。';}
   function update(skip){
     syncControls(skip);const check=Geometry.validate(state);
     if(!check.valid){showError(check.errors);if($('filDialog').open)renderFil();return;}
-    isInvalid=false;model=Geometry.calculate(state);$('errors').hidden=!check.warnings.length;$('errors').textContent=check.warnings.join(' ');
-    document.querySelectorAll('#exportSVG,#exportCSV,#saveConfig,#print').forEach(el=>el.disabled=false);
+    try{Geometry.elevations(state,Transport.FIL.room.height);}catch(error){showError([error.message]);if($('filDialog').open)renderFil();return;}
+    isInvalid=false;model=Geometry.calculate(state);displayBaseElevation=state.baseElevation;$('errors').hidden=!check.warnings.length;$('errors').textContent=check.warnings.join(' ');
+    document.querySelectorAll('#exportSVG,#exportCSV,#saveConfig,#print,#copyHeightReply,#placementCeiling').forEach(el=>el.disabled=false);
     $('stageMeta').textContent=view==='panels'?'TRUE SIZE · 6 FACES':'6 FACES · 12 EDGES';
-    draw();readout();ratios();slopeReadout();saveLocal();if($('filDialog').open)renderFil();
+    draw();readout();ratios();slopeReadout();placementReadout();saveLocal();if($('filDialog').open)renderFil();
+  }
+  function placementReadout(){
+    const e=Geometry.elevations(state,Transport.FIL.room.height),cm=value=>fmt(value/10,1);
+    [['elevationLower',e.lower],['elevationUpper',e.upper],['ceilingGap',e.ceilingGap]].forEach(([id,value])=>$(id).innerHTML=cm(value)+'<small>cm</small>');
+    $('ceilingGap').classList.toggle('placement-over',!e.fitsCeiling);
+    $('elevationStatus').textContent=e.fitsCeiling?'天井高の範囲内（基準面）':'天井の高さを超えています';
+    $('heightReply').value=`現在の試算では、下の面（底面）は床から${cm(e.lower)} cm、上の面（上面）は床から${cm(e.upper)} cmです。上下の面の間隔は${cm(e.height)} cmです。設置高さは検討値です。`+(!e.fitsCeiling?' この条件では天井高265 cmを超えるため、調整が必要です。':'');
+    const sy=210/Math.max(e.ceilingHeight,e.upper,300),sx=Math.min(sy,300/Math.max(state.W,state.B)),y=value=>248-value*sy;
+    const p=[[-state.W/2,e.lower],[state.W/2,e.lower],[state.ox+state.w/2,e.upper],[state.ox-state.w/2,e.upper]].map(v=>[225+v[0]*sx,y(v[1])]);
+    let svg='<line x1="25" y1="248" x2="575" y2="248" class="elevation-floor"/><text x="28" y="270" class="elevation-label">床 0 cm</text>';
+    svg+=`<line x1="25" y1="${y(e.ceilingHeight)}" x2="575" y2="${y(e.ceilingHeight)}" class="elevation-ceiling"/><text x="28" y="${y(e.ceilingHeight)-12}" class="elevation-label">FIL 天井 265 cm</text>`;
+    svg+=`<polygon id="elevationAcrylic" data-lower-mm="${e.lower}" data-upper-mm="${e.upper}" points="${points(p)}" class="elevation-acrylic"/>`;
+    if(state.showStone){const rock=[[-160,0],[-250,96],[-180,214],[-28,300],[180,214],[250,96],[160,0]].map(v=>[225+v[0]*sx,y(v[1])]);svg+=`<polygon id="elevationStone" data-floor-mm="0" data-height-mm="300" points="${points(rock)}" class="elevation-stone"/>`;}
+    [['上面',e.upper,-10],['底面',e.lower,18]].forEach(([name,value,offset])=>{svg+=`<line x1="${Math.max(...p.map(v=>v[0]))+12}" y1="${y(value)}" x2="560" y2="${y(value)}" class="elevation-level"/><text x="560" y="${y(value)+offset}" text-anchor="end" class="elevation-value">${name} ${cm(value)} cm</text>`;});
+    $('elevationDrawing').innerHTML=svg;
+    $('elevationDrawing').setAttribute('aria-label',`床から底面${cm(e.lower)}センチ、上面${cm(e.upper)}センチ、天井265センチの立面図`);
   }
   function slopeReadout(){
     const sides=model.edges.filter(edge=>edge.kind==='side');
@@ -138,12 +156,13 @@
     $('stoneStatus').textContent=state.showStone?'ON':'OFF';
     $('stoneSize').textContent='高さ '+length(STONE.height)+' × 幅 '+length(STONE.width)+' × 奥行 '+length(STONE.depth)+' '+unit;
     let outside=false;
-    if(model&&state.showStone)outside=model.allFaces.some(face=>{
+    if(model&&state.showStone)outside=model.allFaces.filter(face=>displayBaseElevation===0||face.id!=='base').some(face=>{
       const origin=model.vertices[face.indices[0]];
-      return stoneMesh.vertices.some(p=>face.normal.reduce((sum,n,i)=>sum+n*(p[i]-origin[i]),0)>1e-6);
+      return stoneMesh.vertices.some(p=>face.normal.reduce((sum,n,i)=>sum+n*(p[i]-(i===1?displayBaseElevation:0)-origin[i]),0)>1e-6);
     });
-    $('stoneNote').textContent=outside?'石がアクリルの範囲を超えています。':'底面の中央に床置きした概形。石の寸法は固定です。';
-    $('stoneNote').classList.toggle('stone-outside',outside);
+    const plateOverlap=displayBaseElevation>0&&displayBaseElevation<STONE.height&&state.includeBase;
+    $('stoneNote').textContent=plateOverlap?'底板と床置きの石が重なる可能性があります。':outside?displayBaseElevation>0?'床置きの石が側面・上面の範囲を超えています。':'石がアクリルの範囲を超えています。':displayBaseElevation>0?'石は展示室の床に固定。アクリルだけ設置高さを変更します。':'底面の中央に床置きした概形。石の寸法は固定です。';
+    $('stoneNote').classList.toggle('stone-outside',plateOverlap||outside);
   }
   function drawStone(project){
     const projected=stoneMesh.vertices.map(project);
@@ -188,11 +207,14 @@
       const x=p[0]*Math.cos(yaw)+p[2]*Math.sin(yaw),depth=-p[0]*Math.sin(yaw)+p[2]*Math.cos(yaw);
       return [x,-p[1]*Math.cos(pitch)-depth*Math.sin(pitch),depth*Math.cos(pitch)-p[1]*Math.sin(pitch)];
     };
-    const rawVertices=model.vertices.map(raw),xs=rawVertices.map(p=>p[0]),ys=rawVertices.map(p=>p[1]);
+    const world=p=>[p[0],p[1]+displayBaseElevation,p[2]];
+    const rawVertices=model.vertices.map(p=>raw(world(p)));
+    const scene=rawVertices.concat(displayBaseElevation>0?[raw([0,0,0])]:[],displayBaseElevation>0&&state.showStone?stoneMesh.vertices.map(raw):[]),xs=scene.map(p=>p[0]),ys=scene.map(p=>p[1]);
     const minx=Math.min(...xs),maxx=Math.max(...xs),miny=Math.min(...ys),maxy=Math.max(...ys);
     const scale=Math.min(640/(maxx-minx||1),410/(maxy-miny||1))*zoom;
     const cx=(minx+maxx)/2,cy=(miny+maxy)/2;
-    const project=p=>{const r=raw(p);return [450+(r[0]-cx)*scale,333+(r[1]-cy)*scale,r[2]];};
+    const projectWorld=p=>{const r=raw(p);return [450+(r[0]-cx)*scale,333+(r[1]-cy)*scale,r[2]];};
+    const project=p=>projectWorld(world(p));
     const p=model.vertices.map(project),center=[450,333];
     const direction=view==='front'?[0,0,1]:view==='side'?[-1,0,0]:view==='top'?[0,-1,0]:[-Math.sin(yaw)*Math.cos(pitch),-Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch)];
     const visible=f=>f.normal.reduce((sum,v,i)=>sum+v*direction[i],0)<-1e-8;
@@ -200,12 +222,13 @@
       svg+=line(project([0,0,0]),project([geometryState.ox,geometryState.H,geometryState.oz]),'drawing-guide','stroke-dasharray="4 6"');
       if(view==='top'){svg+=line(project([-geometryState.W*.6,0,0]),project([geometryState.W*.6,0,0]),'drawing-guide')+line(project([0,0,-geometryState.D*.6]),project([0,0,geometryState.D*.6]),'drawing-guide');}
       else if(view==='3d')svg+=line(project([-geometryState.W*.65,0,0]),project([geometryState.W*.65,0,0]),'drawing-guide')+line(project([0,0,-geometryState.D*.65]),project([0,0,geometryState.D*.65]),'drawing-guide');
+      if(displayBaseElevation>0&&view!=='top'){const floorA=projectWorld([-geometryState.W*.65,0,0]),floorB=projectWorld([geometryState.W*.65,0,0]);svg+=line(floorA,floorB,'drawing-guide')+text([floorB[0],floorB[1]+20],'床 0 cm','drawing-small');}
     }
     model.allFaces.slice().sort((a,b)=>b.indices.reduce((n,i)=>n+p[i][2],0)-a.indices.reduce((n,i)=>n+p[i][2],0)).forEach(f=>{
       const fill=f.id===faceId&&visible(f)?'#ded8c4':'#d9d5c8';
       svg+=`<polygon data-select-face="${f.id}" points="${points(f.indices.map(i=>p[i]))}" fill="${fill}" fill-opacity="${f.id===faceId&&visible(f)?'.065':'.018'}" stroke="none" style="cursor:pointer"/>`;
     });
-    if(state.showStone)svg+=drawStone(project);
+    if(state.showStone)svg+=drawStone(projectWorld);
     model.edges.forEach(e=>{
       const adjacent=model.allFaces.filter(f=>f.indices.includes(e.a)&&f.indices.includes(e.b));
       const hidden=!adjacent.some(visible);
@@ -222,7 +245,7 @@
       if(view==='top'){svg+=dimension(p[0],p[1],'W '+length(geometryState.W),32,center)+dimension(p[2],p[3],'B '+length(geometryState.B),32,center)+dimension(p[4],p[5],'w '+length(geometryState.w),-24,center)+dimension(p[6],p[7],'b '+length(geometryState.b),-24,center);svg+=dimension(project([geometryState.W/2+80,0,-geometryState.D/2]),project([geometryState.W/2+80,0,geometryState.D/2]),'D '+length(geometryState.D),20,center);}
     }
     svg+=text([450,628],view==='top'?'底面・上面ともに台形 ／ Dは垂直の奥行':view==='3d'?'台形を底面・上面に持つ立体':'H は垂直高さ。側板の実寸高さは「斜高」。','drawing-small');
-    $('drawing').innerHTML=svg;
+    $('drawing').innerHTML=svg;$('drawing').dataset.baseElevationMm=displayBaseElevation;
   }
   function drawPanels(dims,vertices){
     const mobile=window.innerWidth<=760,cols=mobile?2:3;
@@ -254,7 +277,7 @@
     const countPlates=4+Number(state.includeBase)+Number(state.includeTop);$('areaLabel').textContent=countPlates+'枚の板の面積';$('massLabel').textContent=countPlates+'枚の板の概算重量';
   }
   function preset(type){
-    state={...original,preset:type,showStone:state.showStone,filClearance:state.filClearance,filStaging:state.filStaging,filPose:state.filPose};
+    state={...original,preset:type,showStone:state.showStone,baseElevation:state.baseElevation,filClearance:state.filClearance,filStaging:state.filStaging,filPose:state.filPose};
     if(type==='low')state.H=state.W*GOLD;
     if(type==='source'){state.baseLock=false;state.D=1000;}
     if(type==='free'){state.baseLock=false;state.basePlanLock=false;state.topLock=false;state.ox=100;state.oz=-60;}
@@ -277,6 +300,9 @@
     if(isInvalid)return;const rows=[['区分','対象','項目','数値','単位','備考']];
     const add=(section,target,item,value,units,note='')=>rows.push([section,target,item,typeof value==='number'?exact(value):value,units,note]);
     controlDefinitions.forEach(([k,,name])=>add('入力',k,name,state[k],'mm'));
+    const placement=Geometry.elevations(state,Transport.FIL.room.height);
+    [['底面',placement.lower],['上面',placement.upper]].forEach(([target,value])=>add('設置高さ',target,'床からの高さ',value/10,'cm','設置高さは検討値。板の基準面・板厚未補正'));
+    add('設置高さ','天井','上面からの余裕',placement.ceilingGap/10,'cm','FIL天井高265 cm');
     add('連動寸法','b','上面の後幅',state.b,'mm','側板の平面を保つ連動値');
     add('入力','density','密度の仮定',state.density,'g/cm³','仮定値');
     add('比率','底面','前幅/後幅',state.W/state.B,'');add('比率','上面','前幅/後幅',state.w/state.b,'');add('比率','底面','前幅/奥行',state.W/state.D,'');add('比率','高さ','前幅/垂直高さ',state.W/state.H,'');add('比率','上面','上面前幅/底面前幅',state.w/state.W,'');add('比率','上面','上面奥行/底面奥行',state.d/state.D,'');
@@ -302,11 +328,13 @@
     if(typeof data.state.density!=='number'||!Number.isFinite(data.state.density))throw Error('密度を確認してください。');
     next.density=data.state.density;next.baseLock=data.state.baseLock===true;next.basePlanLock=data.version===2&&data.state.basePlanLock===true;next.topLock=data.state.topLock===true;next.includeBase=data.state.includeBase===true;next.includeTop=data.state.includeTop===true;next.taper=typeof data.state.taper==='number'?data.state.taper:GOLD;
     next.showStone=data.state.showStone!==false;
+    next.baseElevation=data.state.baseElevation===undefined?0:data.state.baseElevation;
+    Geometry.elevations(next,Transport.FIL.room.height);
     next.filClearance=data.state.filClearance===undefined?20:data.state.filClearance;next.filStaging=data.state.filStaging===undefined?true:data.state.filStaging;next.filPose=data.state.filPose===undefined?'auto':data.state.filPose;next.filApplied=data.state.filApplied===true;
     if(!Number.isFinite(next.taper)||next.taper<=0||next.taper>1)throw Error('上面の比率を確認してください。');
     if(next.baseLock)next.D=next.W/PHI;if(next.basePlanLock)next.B=next.W/PHI;if(next.topLock){next.w=next.W*next.taper;next.d=next.D*next.taper;}next.b=next.w-(next.W-next.B)*next.d/next.D;
     const check=Geometry.validate(next);if(!check.valid)throw Error(check.errors.join(' '));
-    Transport.calculate(next,{clearance:next.filClearance,staging:next.filStaging,pose:next.filPose});
+    Transport.calculate({...next,baseElevation:0},{clearance:next.filClearance,staging:next.filStaging,pose:next.filPose});
     next.preset=['golden','source','low','free','slope325','front325','custom','fil'].includes(data.state.preset)?data.state.preset:'custom';state=next;unit=factors[data.unit]?data.unit:'mm';$('unit').value=unit;
   }
   buildControls();
@@ -324,7 +352,13 @@
   $('density').addEventListener('input',event=>{if(event.target.value===''){showError(['密度を入力してください。']);return;}state.density=Number(event.target.value);markCustom();update();});
   $('unit').addEventListener('change',event=>{unit=event.target.value;update();});
   ['showDims','showVertices','showGuides','showAllEdges'].forEach(id=>$(id).addEventListener('change',draw));
-  $('showStone').addEventListener('change',event=>{state.showStone=event.target.checked;draw();saveLocal();});
+  $('showStone').addEventListener('change',event=>{state.showStone=event.target.checked;draw();if(!isInvalid)placementReadout();saveLocal();});
+  function setPlacement(value){state.baseElevation=value;if(state.filApplied){state.filApplied=false;state.preset='custom';}update('baseElevation');}
+  $('baseElevation').addEventListener('input',event=>{const raw=event.target.value.trim();if(raw===''||!Number.isFinite(Number(raw)*10)||Number(raw)<0){showError(['底面の設置高さを0以上の数値で入力してください。']);return;}setPlacement(Number(raw)*10);});
+  $('baseElevation').addEventListener('blur',()=>update());
+  $('placementFloor').addEventListener('click',()=>{setPlacement(0);$('baseElevation').value=0;});
+  $('placementCeiling').addEventListener('click',()=>{if(isInvalid)return;const base=Transport.FIL.room.height-state.H;if(base<0){toast('立体の高さが天井高265 cmを超えています。高さを小さくしてください。');return;}setPlacement(base);$('baseElevation').value=Number((base/10).toFixed(4));});
+  $('copyHeightReply').addEventListener('click',async()=>{if(isInvalid)return;try{await navigator.clipboard.writeText($('heightReply').value);toast('床からの高さを伝える文章をコピーしました。');}catch(_){$('heightReply').focus();$('heightReply').select();toast('文章を選択しました。コピーしてお使いください。');}});
   $('openFil').addEventListener('click',openFil);$('closeFil').addEventListener('click',()=>$('filDialog').close());$('applyFil').addEventListener('click',applyFil);
   $('filDialog').addEventListener('click',event=>{if(event.target===$('filDialog'))$('filDialog').close();});
   $('filClearance').addEventListener('input',event=>{
@@ -334,7 +368,7 @@
   });
   $('filPose').addEventListener('change',event=>{state.filPose=event.target.value;filSettingsChanged();});
   $('filStaging').addEventListener('change',event=>{state.filStaging=event.target.checked;filSettingsChanged();});
-  $('reset').addEventListener('click',()=>{preset('golden');toast('初期値に戻しました。');});
+  $('reset').addEventListener('click',()=>{state.baseElevation=0;preset('golden');toast('初期値に戻しました。');});
   $('zoomIn').addEventListener('click',()=>{zoom=Math.min(1.7,zoom+.1);draw();});$('zoomOut').addEventListener('click',()=>{zoom=Math.max(.5,zoom-.1);draw();});$('resetView').addEventListener('click',()=>{yaw=-.56;pitch=.4;zoom=1;draw();});
   $('exportSVG').addEventListener('click',exportSVG);$('exportCSV').addEventListener('click',exportCSV);$('print').addEventListener('click',()=>{document.querySelectorAll('.readout-details').forEach(d=>d.open=true);window.print();});
   $('saveConfig').addEventListener('click',()=>{if(!isInvalid){download('Dot_Area_Acrylic_Settings.json',JSON.stringify({version:2,state,unit},null,2),'application/json');toast('この寸法の設定を保存しました。');}});
@@ -346,7 +380,7 @@
   $('drawing').addEventListener('pointermove',event=>{if(!drag)return;const dx=event.clientX-drag.x,dy=event.clientY-drag.y;if(Math.abs(dx)+Math.abs(dy)>5)dragged=true;if(dragged){yaw=drag.yaw+dx*.006;pitch=Math.max(.05,Math.min(1.35,drag.pitch+dy*.005));draw();}});
   $('drawing').addEventListener('pointerup',event=>{drag=null;if($('drawing').hasPointerCapture(event.pointerId))$('drawing').releasePointerCapture(event.pointerId);});$('drawing').addEventListener('pointercancel',()=>{drag=null;});
   $('drawing').addEventListener('click',event=>{if(dragged){dragged=false;return;}const edge=event.target.closest('[data-select-edge]');if(edge){selectedEdge=selectedEdge===edge.dataset.selectEdge?null:edge.dataset.selectEdge;draw();readout();return;}const f=event.target.closest('[data-select-face]');if(f){faceId=f.dataset.selectFace;draw();readout();}});
-  window.AcrylicStudio={getState:()=>({...state}),getModel:()=>model,getView:()=>view,setState:(next)=>{state={...state,...next};constrain();update();},isInvalid:()=>isInvalid,getTransport:()=>Transport.calculate(state,filOptions())};
+  window.AcrylicStudio={getState:()=>({...state}),getModel:()=>model,getView:()=>view,setState:(next)=>{state={...state,...next};constrain();update();},isInvalid:()=>isInvalid,getTransport:()=>Transport.calculate(state,filOptions()),getPlacement:()=>Geometry.elevations(state,Transport.FIL.room.height)};
   window.addEventListener('resize',draw);
   update();
 })();
