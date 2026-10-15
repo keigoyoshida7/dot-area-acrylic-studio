@@ -164,14 +164,14 @@
     };
   }
   function slopePreset(state, mode) {
-    if (mode !== 'spatial' && mode !== 'front') throw new RangeError('35°パターンは実際の斜辺または正面投影から選択してください。');
+    if (mode !== 'spatial' && mode !== 'front') throw new RangeError('32.5°パターンは実際の斜辺または正面投影から選択してください。');
     var s = calculate(state).state;
     var k = s.w / s.W;
     if (!(k > 0 && k < 1) || Math.abs(s.d / s.D - k) > 1e-9 || Math.abs(s.b / s.B - k) > 1e-9) {
-      throw new RangeError('35°パターンには、底面より小さい相似形の上面が必要です。上面の幅と奥行の比率をそろえてください。');
+      throw new RangeError('32.5°パターンには、底面より小さい相似形の上面が必要です。上面の幅と奥行の比率をそろえてください。');
     }
     var result = Object.assign({}, state, { B: s.B, b: s.b, ox: 0, oz: 0 });
-    var tangent = Math.tan(35 / DEG);
+    var tangent = Math.tan(32.5 / DEG);
     if (mode === 'spatial') {
       // Every isosceles trapezoid is cyclic. Homothety about its circumcenter
       // gives equal horizontal travel for all four corresponding corner edges.
@@ -183,7 +183,7 @@
       result.H = Math.abs(s.W - s.w) / 2 * tangent;
     }
     var check = validate(result);
-    if (!check.valid) throw new RangeError('この底面では35°パターンが成立しません。' + check.errors.join(' '));
+    if (!check.valid) throw new RangeError('この底面では32.5°パターンが成立しません。' + check.errors.join(' '));
     return result;
   }
   return { PHI: PHI, calculate: calculate, validate: validate, slopePreset: slopePreset };

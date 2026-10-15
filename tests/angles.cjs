@@ -18,13 +18,13 @@ const spatialState = Geometry.slopePreset(original, 'spatial');
 const frontState = Geometry.slopePreset(original, 'front');
 assert.equal(JSON.stringify(original), snapshot);
 assert.notEqual(spatialState, original);
-close(spatialState.H, 373.05381240320827); close(spatialState.oz, -124.99737422466626);
-close(frontState.H, 350.0964147541255); close(frontState.ox, 0); close(frontState.oz, 0);
+close(spatialState.H, 339.41578259867686); close(spatialState.oz, -124.99737422466626);
+close(frontState.H, 318.5284391902398); close(frontState.ox, 0); close(frontState.oz, 0);
 const spatial = Geometry.calculate(spatialState), front = Geometry.calculate(frontState);
-spatial.edges.filter(edge => edge.kind === 'side').forEach(edge => { close(edge.inclination, 35); close(edge.length, 650.3994738286076); });
-front.edges.filter(edge => ['AE', 'BF'].includes(edge.id)).forEach(edge => close(edge.frontInclination, 35));
-assert.ok(Math.abs(front.edges.find(edge => edge.id === 'AE').inclination - 35) > 1);
-assert.ok(Math.abs(spatial.edges.find(edge => edge.id === 'AE').frontInclination - 35) > 1);
+spatial.edges.filter(edge => edge.kind === 'side').forEach(edge => { close(edge.inclination, 32.5); close(edge.length, 631.7067374067129); });
+front.edges.filter(edge => ['AE', 'BF'].includes(edge.id)).forEach(edge => close(edge.frontInclination, 32.5));
+assert.ok(Math.abs(front.edges.find(edge => edge.id === 'AE').inclination - 32.5) > 1);
+assert.ok(Math.abs(spatial.edges.find(edge => edge.id === 'AE').frontInclination - 32.5) > 1);
 [original, spatialState, frontState].forEach(state => independentAngles(Geometry.calculate(state)));
 ['W', 'B', 'D', 'w', 'd', 't', 'density', 'showStone', 'includeBase', 'includeTop', 'baseLock', 'basePlanLock', 'topLock', 'taper', 'preset'].forEach(key => {
   assert.equal(spatialState[key], original[key]); assert.equal(frontState[key], original[key]);
@@ -40,7 +40,7 @@ assert.ok(Math.abs(centered.edges.find(edge => edge.id === 'AE').inclination - c
   { ...original, W: 1100, B: 1400, D: 1200, w: 440, d: 480 }
 ].forEach(state => {
   const model = Geometry.calculate(Geometry.slopePreset(state, 'spatial'));
-  model.edges.filter(edge => edge.kind === 'side').forEach(edge => close(edge.inclination, 35));
+  model.edges.filter(edge => edge.kind === 'side').forEach(edge => close(edge.inclination, 32.5));
   independentAngles(model);
 });
 // Uniform geometric scaling leaves the target angles intact.
@@ -52,7 +52,7 @@ close(scaled.H, spatialState.H * 2); close(scaled.oz, spatialState.oz * 2); asse
 ['spatial', 'front'].forEach(mode => {
   const candidate = Transport.calculate(Geometry.slopePreset(original, mode));
   const transported = Geometry.calculate(candidate.scaledState);
-  transported.edges.filter(edge => mode === 'spatial' ? edge.kind === 'side' : ['AE', 'BF'].includes(edge.id)).forEach(edge => close(mode === 'spatial' ? edge.inclination : edge.frontInclination, 35));
+  transported.edges.filter(edge => mode === 'spatial' ? edge.kind === 'side' : ['AE', 'BF'].includes(edge.id)).forEach(edge => close(mode === 'spatial' ? edge.inclination : edge.frontInclination, 32.5));
   assert.equal(candidate.scaledState.t, original.t);
   assert.equal(candidate.scaledState.showStone, original.showStone);
   assert.equal(candidate.routeComplete, false);
@@ -63,4 +63,4 @@ assert.throws(() => Geometry.slopePreset({ ...original, w: original.W, d: origin
 assert.throws(() => Geometry.slopePreset({ ...original, H: 0 }, 'front'), RangeError);
 // Far-outside circumcenter can push the top beyond its base; reject rather than hide invalid geometry.
 assert.throws(() => Geometry.slopePreset({ ...original, W: 3000, B: 500, D: 100, w: 1500, d: 50 }, 'spatial'), RangeError);
-console.log('Angle checks passed: four real 35° edges, two projected 35° lines, distinct definitions, similar trapezoids, rectangles, scale invariance, input preservation, invalid cases.');
+console.log('Angle checks passed: four real 32.5° edges, two projected 32.5° lines, distinct definitions, similar trapezoids, rectangles, scale invariance, input preservation, invalid cases.');

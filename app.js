@@ -76,7 +76,7 @@
     $('density').value=state.density;
     document.querySelectorAll('[data-taper]').forEach(el=>{el.disabled=!state.topLock;el.classList.toggle('active',Math.abs(+el.dataset.taper-state.taper)<1e-6&&state.topLock);});
     document.querySelectorAll('[data-preset]').forEach(el=>el.classList.toggle('active',el.dataset.preset===state.preset));
-    const descriptions={golden:'底面・上面の前幅／後幅をφに。上面は底面の1/φ²。',low:'底面・上面の黄金比を保ち、高さを前幅の1/φ²に。',source:'資料の幅・奥行・高さを仮設定。台形は今回の設計案。',free:'寸法を個別に指定。側板の平面を保つよう上面の後幅が連動。',slope35:'4本の斜辺と底面を35°に。黄金比の台形を保ち、高さと上面の前後位置を調整。',front35:'正面図の左右の斜線を底辺から35°に。底面・上面の黄金比と中心位置を保ちます。',fil:'FILの開口・展示室の条件から算出した上限候補。曲がり角・階段は未判定です。',custom:'寸法を調整中。チェックした比率と側板の平面を保ちます。'};
+    const descriptions={golden:'底面・上面の前幅／後幅をφに。上面は底面の1/φ²。',low:'底面・上面の黄金比を保ち、高さを前幅の1/φ²に。',source:'資料の幅・奥行・高さを仮設定。台形は今回の設計案。',free:'寸法を個別に指定。側板の平面を保つよう上面の後幅が連動。',slope325:'4本の斜辺と底面を32.5°に。黄金比の台形を保ち、高さと上面の前後位置を調整。',front325:'正面図の左右の斜線を底辺から32.5°に。底面・上面の黄金比と中心位置を保ちます。',fil:'FILの開口・展示室の条件から算出した上限候補。曲がり角・階段は未判定です。',custom:'寸法を調整中。チェックした比率と側板の平面を保ちます。'};
     $('presetDescription').textContent=descriptions[state.preset]||descriptions.custom;
     $('unitLabel').textContent=$('edgeUnit').textContent=unit;
   }
@@ -91,7 +91,7 @@
   }
   function slopeReadout(){
     const sides=model.edges.filter(edge=>edge.kind==='side');
-    $('slopeAngles').innerHTML=sides.map(edge=>`<div class="${Math.abs(edge.inclination-35)<1e-8?'at-target':''}"><span>${edge.id}</span><strong>${fmt(edge.inclination,2)}<small>°</small></strong></div>`).join('');
+    $('slopeAngles').innerHTML=sides.map(edge=>`<div class="${Math.abs(edge.inclination-32.5)<1e-8?'at-target':''}"><span>${edge.id}</span><strong>${fmt(edge.inclination,2)}<small>°</small></strong></div>`).join('');
     const front=sides.filter(edge=>edge.id==='AE'||edge.id==='BF');
     $('slopeNote').textContent='正面図の投影角度：'+front.map(edge=>edge.id+' '+fmt(edge.frontInclination,2)+'°').join(' ／ ')+'。表示方向で斜線の見え方が変わります。';
   }
@@ -258,7 +258,7 @@
     if(type==='low')state.H=state.W*GOLD;
     if(type==='source'){state.baseLock=false;state.D=1000;}
     if(type==='free'){state.baseLock=false;state.basePlanLock=false;state.topLock=false;state.ox=100;state.oz=-60;}
-    if(type==='slope35'||type==='front35')state=Geometry.slopePreset(state,type==='slope35'?'spatial':'front');
+    if(type==='slope325'||type==='front325')state=Geometry.slopePreset(state,type==='slope325'?'spatial':'front');
     constrain();selectedEdge=null;update();
   }
   function download(name,content,type){const url=URL.createObjectURL(new Blob([content],{type}));const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
@@ -307,7 +307,7 @@
     if(next.baseLock)next.D=next.W/PHI;if(next.basePlanLock)next.B=next.W/PHI;if(next.topLock){next.w=next.W*next.taper;next.d=next.D*next.taper;}next.b=next.w-(next.W-next.B)*next.d/next.D;
     const check=Geometry.validate(next);if(!check.valid)throw Error(check.errors.join(' '));
     Transport.calculate(next,{clearance:next.filClearance,staging:next.filStaging,pose:next.filPose});
-    next.preset=['golden','source','low','free','slope35','front35','custom','fil'].includes(data.state.preset)?data.state.preset:'custom';state=next;unit=factors[data.unit]?data.unit:'mm';$('unit').value=unit;
+    next.preset=['golden','source','low','free','slope325','front325','custom','fil'].includes(data.state.preset)?data.state.preset:'custom';state=next;unit=factors[data.unit]?data.unit:'mm';$('unit').value=unit;
   }
   buildControls();
   Transport.POSES.forEach(pose=>$('filPose').insertAdjacentHTML('beforeend',`<option value="${pose.id}">${esc(pose.name)}</option>`));
