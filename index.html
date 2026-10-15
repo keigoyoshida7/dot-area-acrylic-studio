@@ -16,6 +16,7 @@
       <aside class="controls" aria-label="寸法の設定">
         <div class="section-top"><h2>かたちの設定</h2><span>01 — PARAMETERS</span></div>
         <div class="preset-grid" role="group" aria-label="形状プリセット"><button class="active" data-preset="golden">黄金比</button><button data-preset="low">低いかたち</button><button data-preset="source">基準サイズ</button><button data-preset="free">自由設計</button></div>
+        <button id="openFil" class="fil-open">FIL 搬入上限を算出 <span>↗</span></button>
         <p class="subtle" id="presetDescription">底面・上面も台形に。前幅／後幅をφに。</p>
         <div class="control-heading"><span>底面と高さ</span><label class="switch-label"><input type="checkbox" id="baseLock" checked><span>幅／奥行 = φ</span></label></div>
         <label class="plan-lock switch-label"><input type="checkbox" id="basePlanLock" checked><span>底面の前幅／後幅 = φ</span></label>
@@ -53,6 +54,23 @@
     <footer><span>Dot Area <i>／</i> De-symmetrical Core</span><span>幾何のスタディ。黄金比は、制約の選び方で形が変わります。 <a href="https://github.com/keigoyoshida7/dot-area-acrylic-studio" target="_blank" rel="noopener">GitHub ↗</a></span></footer>
   </main>
   <div class="toast" id="toast" role="status" hidden></div>
-  <script src="model.js"></script><script src="app.js"></script>
+  <dialog id="filDialog" aria-labelledby="filTitle">
+    <div class="fil-dialog-header"><div><p class="eyebrow">FIL ／ ASSEMBLED TRANSPORT</p><h2 id="filTitle">搬入寸法の上限試算</h2><p>組み立てた状態で搬入。現在のかたちの比率を保って算出します。</p></div><button id="closeFil" aria-label="搬入試算を閉じる">閉じる ×</button></div>
+    <div class="fil-dialog-body">
+      <div class="fil-scope"><span>経路全体は未判定</span><p>直線の開口断面と展示室に収まる上限です。直角の旋回、階段の勾配・踊り場、姿勢の持ち替えは別途確認が必要です。</p></div>
+      <div class="fil-options"><label class="fil-pose-label" for="filPose">搬入時の向き<select id="filPose"><option value="auto">6方向から最大の候補を選ぶ</option></select></label><label for="filClearance">片側の余白 <span><input id="filClearance" type="number" min="0" max="500" step="1" value="20"> mm</span><small>上下左右・奥行の両端から各々差し引きます。</small></label></div>
+      <label class="fil-staging"><input id="filStaging" type="checkbox" checked><span>ドアを抜けた後は、向きを変えずに直進する仮定 <small>進行方向の長さを、対面の壁までの1.36 mから余白を差し引いた値に制限。</small></span></label>
+      <p class="fil-error" id="filError" role="alert" hidden></p>
+      <section id="filResult" class="fil-result" aria-live="polite">
+        <div class="fil-result-heading"><h3>条件内の最大候補 <small>設置時の外形</small></h3><span id="filScale">—</span></div>
+        <div class="fil-metrics"><div><span>幅</span><strong id="filMaxW">—</strong><small id="filMaxWm">—</small></div><div><span>奥行</span><strong id="filMaxD">—</strong><small id="filMaxDm">—</small></div><div><span>高さ</span><strong id="filMaxH">—</strong><small id="filMaxHm">—</small></div></div>
+        <div class="fil-pose-result"><div><span>この候補の搬入姿勢</span><strong id="filPoseName">—</strong><p id="filTransportSize">—</p></div><div><span>寸法を制限している箇所</span><strong id="filBinding">—</strong></div></div>
+        <details class="fil-details"><summary>6方向の候補を比較</summary><div id="filPoseRows"></div></details>
+        <div class="fil-actions"><p>形状の比率と板厚を保って反映します。石は高さ300 × 幅500 × 奥行300 mmのままです。</p><button id="applyFil">この上限候補を適用 <span>↗</span></button></div>
+      </section>
+      <section class="fil-measurements"><h3>FIL 寸法メモ <small>ユーザー提供・単位 m</small></h3><div class="fil-table-wrap"><table><thead><tr><th>場所</th><th>幅 × 高さ</th><th>候補との差：横／縦の合計</th></tr></thead><tbody id="filOpeningRows"></tbody></table></div><dl class="fil-room"><div><dt>Spatial Audio スペース</dt><dd>幅6.64 × 奥行4.62 × 高さ2.65 m</dd></div><div><dt>ドアから対面の壁まで</dt><dd>直線1.36 m（上記の仮定に使用）</dd></div><div><dt>直角の曲がり角</dt><dd>角―角1.50 m <b>旋回未判定</b></dd></div></dl><p class="fil-footnote">角―角1.50 mを通過幅や旋回半径として扱うことはできません。両側の通路幅・踊り場の平面図が分かれば、旋回の検討を追加できます。計算対象はアクリルの基準面。板厚のはみ出し・梱包・台車は未算入です。</p></section>
+    </div>
+  </dialog>
+  <script src="model.js"></script><script src="transport.js"></script><script src="app.js"></script>
 </body>
 </html>

@@ -3,7 +3,7 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const PHI = Geometry.PHI, GOLD = 1 / PHI ** 2;
-  const original = {W:1618,B:1618/PHI,D:1618/PHI,H:1000,w:1618*GOLD,b:1618/PHI*GOLD,d:1618/PHI*GOLD,ox:0,oz:0,t:5,density:1.19,baseLock:true,basePlanLock:true,topLock:true,includeBase:false,includeTop:false,showStone:true,taper:GOLD,preset:'golden'};
+  const original = {W:1618,B:1618/PHI,D:1618/PHI,H:1000,w:1618*GOLD,b:1618/PHI*GOLD,d:1618/PHI*GOLD,ox:0,oz:0,t:5,density:1.19,baseLock:true,basePlanLock:true,topLock:true,includeBase:false,includeTop:false,showStone:true,filClearance:20,filStaging:true,filPose:'auto',filApplied:false,taper:GOLD,preset:'golden'};
   let state = {...original}, unit='mm', view='3d', faceId='front', yaw=-0.56, pitch=0.40, zoom=1, selectedEdge=null, model, isInvalid=false;
   const factors={mm:1,cm:10,m:1000}, labels='ABCDEFGH';
   const STONE={width:500,height:300,depth:300};
@@ -31,7 +31,7 @@
     ['w','w','上面の前幅',20,4000,1,'topControls'],['d','d','上面の奥行',20,4000,1,'topControls'],
     ['ox','x','左右のずれ',-1200,1200,1,'advancedControls'],['oz','z','前後のずれ',-1000,1000,1,'advancedControls'],['t','t','アクリル板厚',1,40,0.5,'advancedControls']
   ];
-  let toastTimer;
+  let toastTimer,filResult=null;
   const fmt=(v,d=1)=>Number(v).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
   const length=v=>fmt(v/factors[unit],unit==='m'?4:unit==='cm'?2:1);
   const exact=v=>Number(v.toFixed(6));
@@ -39,7 +39,7 @@
   function toast(message){$('toast').textContent=message;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,3500);}
   function constrain(){if(state.baseLock)state.D=state.W/PHI;if(state.basePlanLock)state.B=state.W/PHI;if(state.topLock){state.w=state.W*state.taper;state.d=state.D*state.taper;}state.b=state.w-(state.W-state.B)*state.d/state.D;}
   function saveLocal(){try{localStorage.setItem('dot-area-acrylic-v2',JSON.stringify({version:2,state,unit}));}catch(_){}}
-  function markCustom(){state.preset='custom';}
+  function markCustom(){state.preset='custom';state.filApplied=false;}
   function buildControls(){
     controlDefinitions.forEach(([key,symbol,label,min,max,step,parent])=>{
       $(parent).insertAdjacentHTML('beforeend',`<div class="parameter" data-param="${key}"><div class="param-row"><label for="input-${key}"><small>${symbol}</small>${label}</label><div class="param-value"><input id="input-${key}" type="number" step="${step}" aria-label="${label}"><span class="control-unit">mm</span></div></div><input type="range" id="range-${key}" min="${min}" max="${max}" step="${step}" aria-label="${label}を調整"></div>`);
@@ -67,6 +67,8 @@
     document.querySelectorAll('.control-unit').forEach(el=>el.textContent=unit);
     $('baseLock').checked=state.baseLock;$('basePlanLock').checked=state.basePlanLock;$('topLock').checked=state.topLock;
     $('includeBase').checked=state.includeBase;$('includeTop').checked=state.includeTop;
+    $('openFil').classList.toggle('active',state.filApplied);
+    $('openFil').setAttribute('aria-label',state.filApplied?'FILの上限候補を適用済み。搬入試算を開く':'FILの搬入寸法上限を試算する');
     syncStoneControls();
     $('derivedB').textContent=length(state.b)+' '+unit;
     $('taper').value=state.taper;$('taper').disabled=!state.topLock;
@@ -74,18 +76,45 @@
     $('density').value=state.density;
     document.querySelectorAll('[data-taper]').forEach(el=>{el.disabled=!state.topLock;el.classList.toggle('active',Math.abs(+el.dataset.taper-state.taper)<1e-6&&state.topLock);});
     document.querySelectorAll('[data-preset]').forEach(el=>el.classList.toggle('active',el.dataset.preset===state.preset));
-    const descriptions={golden:'底面・上面の前幅／後幅をφに。上面は底面の1/φ²。',low:'底面・上面の黄金比を保ち、高さを前幅の1/φ²に。',source:'資料の幅・奥行・高さを仮設定。台形は今回の設計案。',free:'寸法を個別に指定。側板の平面を保つよう上面の後幅が連動。',custom:'寸法を調整中。チェックした比率と側板の平面を保ちます。'};
+    const descriptions={golden:'底面・上面の前幅／後幅をφに。上面は底面の1/φ²。',low:'底面・上面の黄金比を保ち、高さを前幅の1/φ²に。',source:'資料の幅・奥行・高さを仮設定。台形は今回の設計案。',free:'寸法を個別に指定。側板の平面を保つよう上面の後幅が連動。',fil:'FILの開口・展示室の条件から算出した上限候補。曲がり角・階段は未判定です。',custom:'寸法を調整中。チェックした比率と側板の平面を保ちます。'};
     $('presetDescription').textContent=descriptions[state.preset]||descriptions.custom;
     $('unitLabel').textContent=$('edgeUnit').textContent=unit;
   }
   function showError(errors){isInvalid=true;$('errors').hidden=false;$('errors').textContent=errors.join(' ');$('stageMeta').textContent='入力を確認してください · 図は前の有効な寸法';document.querySelectorAll('#exportSVG,#exportCSV,#saveConfig,#print').forEach(el=>el.disabled=true);}
   function update(skip){
     syncControls(skip);const check=Geometry.validate(state);
-    if(!check.valid){showError(check.errors);return;}
+    if(!check.valid){showError(check.errors);if($('filDialog').open)renderFil();return;}
     isInvalid=false;model=Geometry.calculate(state);$('errors').hidden=!check.warnings.length;$('errors').textContent=check.warnings.join(' ');
     document.querySelectorAll('#exportSVG,#exportCSV,#saveConfig,#print').forEach(el=>el.disabled=false);
     $('stageMeta').textContent=view==='panels'?'TRUE SIZE · 6 FACES':'6 FACES · 12 EDGES';
-    draw();readout();ratios();saveLocal();
+    draw();readout();ratios();saveLocal();if($('filDialog').open)renderFil();
+  }
+  function filOptions(){return {clearance:state.filClearance,staging:state.filStaging,pose:state.filPose};}
+  function renderFil(){
+    $('filClearance').value=state.filClearance;$('filStaging').checked=state.filStaging;$('filPose').value=state.filPose;
+    $('filError').hidden=true;$('filResult').hidden=false;$('applyFil').disabled=false;
+    try{
+      if(isInvalid)throw Error('アクリルの寸法入力を確認してから試算してください。');
+      filResult=Transport.calculate(state,filOptions());
+      const best=filResult.best,shape=best.roomStanding;
+      [['W',shape.width],['D',shape.depth],['H',shape.height]].forEach(([axis,value])=>{$('filMax'+axis).innerHTML=fmt(value,1)+'<em>mm</em>';$('filMax'+axis+'m').textContent=fmt(value/1000,4)+' m';});
+      $('filScale').textContent='現在の形状 × '+fmt(best.scale,4);
+      $('filPoseName').textContent=best.name;
+      $('filTransportSize').textContent='搬入時：横 '+fmt(best.transport.width,1)+' × 縦 '+fmt(best.transport.height,1)+' × 進行方向 '+fmt(best.transport.depth,1)+' mm';
+      $('filBinding').textContent=best.binding.map(limit=>limit.label).join('・');
+      $('filOpeningRows').innerHTML=Transport.FIL.openings.map(opening=>`<tr class="${best.binding.some(limit=>limit.id.startsWith(opening.id+'-'))?'fil-binding':''}"><th>${esc(opening.name)}</th><td>${fmt(opening.width/1000,2)} × ${fmt(opening.height/1000,2)}</td><td>${fmt(opening.width-best.transport.width,1)} / ${fmt(opening.height-best.transport.height,1)} mm</td></tr>`).join('');
+      $('filPoseRows').innerHTML='<div class="fil-pose-row fil-row-head"><span>搬入姿勢</span><span>幅 × 奥行 × 高さ（設置時・mm）</span></div>'+filResult.orientations.map(pose=>`<div class="fil-pose-row ${pose.id===best.id?'selected':''}"><span>${esc(pose.name)}</span><span>${fmt(pose.roomStanding.width,1)} × ${fmt(pose.roomStanding.depth,1)} × ${fmt(pose.roomStanding.height,1)}</span></div>`).join('');
+    }catch(error){
+      filResult=null;$('filResult').hidden=true;$('applyFil').disabled=true;$('filError').hidden=false;$('filError').textContent=error.message;
+      $('filOpeningRows').innerHTML=Transport.FIL.openings.map(opening=>`<tr><th>${esc(opening.name)}</th><td>${fmt(opening.width/1000,2)} × ${fmt(opening.height/1000,2)}</td><td>—</td></tr>`).join('');
+    }
+  }
+  function openFil(){renderFil();$('filDialog').showModal();}
+  function filSettingsChanged(){if(state.filApplied)state.preset='custom';state.filApplied=false;syncControls();renderFil();saveLocal();}
+  function applyFil(){
+    renderFil();if(!filResult||isInvalid)return;
+    state={...filResult.scaledState,preset:'fil',filApplied:true};constrain();selectedEdge=null;
+    $('filDialog').close();update();toast('FILの条件内の上限候補を適用しました。旋回・階段は別途確認してください。');
   }
   function ratios(){
     const r=state.W/state.D,rp=state.W/state.B,rt=state.w/state.b,rw=state.w/state.W,rd=state.d/state.D;
@@ -219,7 +248,7 @@
     const countPlates=4+Number(state.includeBase)+Number(state.includeTop);$('areaLabel').textContent=countPlates+'枚の板の面積';$('massLabel').textContent=countPlates+'枚の板の概算重量';
   }
   function preset(type){
-    state={...original,preset:type,showStone:state.showStone};
+    state={...original,preset:type,showStone:state.showStone,filClearance:state.filClearance,filStaging:state.filStaging,filPose:state.filPose};
     if(type==='low')state.H=state.W*GOLD;
     if(type==='source'){state.baseLock=false;state.D=1000;}
     if(type==='free'){state.baseLock=false;state.basePlanLock=false;state.topLock=false;state.ox=100;state.oz=-60;}
@@ -250,6 +279,13 @@
     add('対角線','底面','対角線',model.bottomDiagonal,'mm');add('対角線','上面','対角線',model.topDiagonal,'mm');model.spaceDiagonals.forEach(d=>add('対角線',d.id,'空間対角線',d.length,'mm'));
     add('合計','4側板','面積',model.area/1e6,'m²');add('合計','選択した板','面積',model.panelArea/1e6,'m²');add('合計','囲まれる空間','体積',model.volume/1e9,'m³');add('合計','選択した板','概算材積',model.materialVolume/1e6,'L','面積×板厚。接合部を除く');add('合計','選択した板','概算重量',model.mass,'kg','面積×板厚×仮定密度');
     add('前提','元資料','寸法の解釈','幅1.618 / 奥行1 / 高さらしき1をmと仮定','','底面・上面の台形化は今回の設計案。板厚・接合補正を除く');
+    if(state.filApplied){
+      const fil=Transport.calculate(state,filOptions());
+      add('FIL搬入試算','前提','経路全体','未判定','','旋回・階段・姿勢の持ち替えは未計算');add('FIL搬入試算','余白','片側余白',state.filClearance,'mm');add('FIL搬入試算','搬入姿勢','選択',fil.best.name,'');add('FIL搬入試算','ドア後の直進仮定','使用',String(state.filStaging),'');
+      Transport.FIL.openings.forEach(opening=>{add('FIL実測メモ',opening.name,'幅',opening.width,'mm');add('FIL実測メモ',opening.name,'高さ',opening.height,'mm');});
+      add('FIL実測メモ','直角の曲がり角','角から角',1500,'mm','旋回未判定。通過幅・半径としては扱わない');add('FIL実測メモ','対面の壁','ドアからの距離',1360,'mm');
+      Object.entries(Transport.FIL.room).forEach(([key,value])=>add('FIL実測メモ','展示室',key,value,'mm'));
+    }
     const csv='\uFEFF'+rows.map(row=>row.map(value=>'"'+String(value).replace(/"/g,'""')+'"').join(',')).join('\r\n');download('Dot_Area_Acrylic_Dimensions.csv',csv,'text/csv;charset=utf-8');toast('全12辺・6面の台形寸法・角度をCSVに保存しました。');
   }
   function importState(data){
@@ -258,12 +294,15 @@
     if(typeof data.state.density!=='number'||!Number.isFinite(data.state.density))throw Error('密度を確認してください。');
     next.density=data.state.density;next.baseLock=data.state.baseLock===true;next.basePlanLock=data.version===2&&data.state.basePlanLock===true;next.topLock=data.state.topLock===true;next.includeBase=data.state.includeBase===true;next.includeTop=data.state.includeTop===true;next.taper=typeof data.state.taper==='number'?data.state.taper:GOLD;
     next.showStone=data.state.showStone!==false;
+    next.filClearance=data.state.filClearance===undefined?20:data.state.filClearance;next.filStaging=data.state.filStaging===undefined?true:data.state.filStaging;next.filPose=data.state.filPose===undefined?'auto':data.state.filPose;next.filApplied=data.state.filApplied===true;
     if(!Number.isFinite(next.taper)||next.taper<=0||next.taper>1)throw Error('上面の比率を確認してください。');
     if(next.baseLock)next.D=next.W/PHI;if(next.basePlanLock)next.B=next.W/PHI;if(next.topLock){next.w=next.W*next.taper;next.d=next.D*next.taper;}next.b=next.w-(next.W-next.B)*next.d/next.D;
     const check=Geometry.validate(next);if(!check.valid)throw Error(check.errors.join(' '));
-    next.preset=['golden','source','low','free','custom'].includes(data.state.preset)?data.state.preset:'custom';state=next;unit=factors[data.unit]?data.unit:'mm';$('unit').value=unit;
+    Transport.calculate(next,{clearance:next.filClearance,staging:next.filStaging,pose:next.filPose});
+    next.preset=['golden','source','low','free','custom','fil'].includes(data.state.preset)?data.state.preset:'custom';state=next;unit=factors[data.unit]?data.unit:'mm';$('unit').value=unit;
   }
   buildControls();
+  Transport.POSES.forEach(pose=>$('filPose').insertAdjacentHTML('beforeend',`<option value="${pose.id}">${esc(pose.name)}</option>`));
   try{const saved=localStorage.getItem('dot-area-acrylic-v2');if(saved)importState(JSON.parse(saved));}catch(_){}
   document.querySelectorAll('[data-preset]').forEach(el=>el.addEventListener('click',()=>preset(el.dataset.preset)));
   document.querySelectorAll('[data-view]').forEach(el=>el.addEventListener('click',()=>{view=el.dataset.view;zoom=1;document.querySelectorAll('[data-view]').forEach(t=>{t.classList.toggle('active',t===el);t.setAttribute('aria-selected',String(t===el));});$('stageMeta').textContent=view==='panels'?'TRUE SIZE · 6 FACES':'6 FACES · 12 EDGES';draw();}));
@@ -278,6 +317,15 @@
   $('unit').addEventListener('change',event=>{unit=event.target.value;update();});
   ['showDims','showVertices','showGuides','showAllEdges'].forEach(id=>$(id).addEventListener('change',draw));
   $('showStone').addEventListener('change',event=>{state.showStone=event.target.checked;draw();saveLocal();});
+  $('openFil').addEventListener('click',openFil);$('closeFil').addEventListener('click',()=>$('filDialog').close());$('applyFil').addEventListener('click',applyFil);
+  $('filDialog').addEventListener('click',event=>{if(event.target===$('filDialog'))$('filDialog').close();});
+  $('filClearance').addEventListener('input',event=>{
+    const value=event.target.value.trim();
+    if(value===''||!Number.isFinite(Number(value))||Number(value)<0||Number(value)>500){filResult=null;$('filResult').hidden=true;$('applyFil').disabled=true;$('filError').hidden=false;$('filError').textContent='片側の余白を0〜500 mmで入力してください。';return;}
+    state.filClearance=Number(value);filSettingsChanged();
+  });
+  $('filPose').addEventListener('change',event=>{state.filPose=event.target.value;filSettingsChanged();});
+  $('filStaging').addEventListener('change',event=>{state.filStaging=event.target.checked;filSettingsChanged();});
   $('reset').addEventListener('click',()=>{preset('golden');toast('初期値に戻しました。');});
   $('zoomIn').addEventListener('click',()=>{zoom=Math.min(1.7,zoom+.1);draw();});$('zoomOut').addEventListener('click',()=>{zoom=Math.max(.5,zoom-.1);draw();});$('resetView').addEventListener('click',()=>{yaw=-.56;pitch=.4;zoom=1;draw();});
   $('exportSVG').addEventListener('click',exportSVG);$('exportCSV').addEventListener('click',exportCSV);$('print').addEventListener('click',()=>{document.querySelectorAll('.readout-details').forEach(d=>d.open=true);window.print();});
@@ -290,7 +338,7 @@
   $('drawing').addEventListener('pointermove',event=>{if(!drag)return;const dx=event.clientX-drag.x,dy=event.clientY-drag.y;if(Math.abs(dx)+Math.abs(dy)>5)dragged=true;if(dragged){yaw=drag.yaw+dx*.006;pitch=Math.max(.05,Math.min(1.35,drag.pitch+dy*.005));draw();}});
   $('drawing').addEventListener('pointerup',event=>{drag=null;if($('drawing').hasPointerCapture(event.pointerId))$('drawing').releasePointerCapture(event.pointerId);});$('drawing').addEventListener('pointercancel',()=>{drag=null;});
   $('drawing').addEventListener('click',event=>{if(dragged){dragged=false;return;}const edge=event.target.closest('[data-select-edge]');if(edge){selectedEdge=selectedEdge===edge.dataset.selectEdge?null:edge.dataset.selectEdge;draw();readout();return;}const f=event.target.closest('[data-select-face]');if(f){faceId=f.dataset.selectFace;draw();readout();}});
-  window.AcrylicStudio={getState:()=>({...state}),getModel:()=>model,getView:()=>view,setState:(next)=>{state={...state,...next};constrain();update();},isInvalid:()=>isInvalid};
+  window.AcrylicStudio={getState:()=>({...state}),getModel:()=>model,getView:()=>view,setState:(next)=>{state={...state,...next};constrain();update();},isInvalid:()=>isInvalid,getTransport:()=>Transport.calculate(state,filOptions())};
   window.addEventListener('resize',draw);
   update();
 })();
