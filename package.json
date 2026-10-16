@@ -3,6 +3,6 @@
   "version": "2.0.0",
   "private": true,
   "scripts": {
-    "test": "node tests/geometry.cjs && node tests/transport.cjs && node tests/angles.cjs && node tests/elevation.cjs"
+    "test": "node tests/geometry.cjs && node tests/transport.cjs && node tests/angles.cjs && node tests/elevation.cjs && node tests/proportions.cjs"
   }
 }

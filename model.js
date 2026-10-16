@@ -198,5 +198,35 @@
     var ceilingGap = ceilingHeight - upper;
     return { lower: lower, upper: upper, height: height, ceilingHeight: ceilingHeight, ceilingGap: ceilingGap, fitsCeiling: ceilingGap >= 0 };
   }
-  return { PHI: PHI, calculate: calculate, validate: validate, slopePreset: slopePreset, elevations: elevations };
+  function proportions(state) {
+    var s = calculate(state).state;
+    var tolerance = 1e-8;
+    function metric(id, actual, target) {
+      var relativeDeviation = (actual - target) / target;
+      return { id: id, actual: actual, target: target, relativeDeviation: relativeDeviation, matches: Math.abs(relativeDeviation) <= tolerance };
+    }
+    var widthScale = s.w / s.W, depthScale = s.d / s.D;
+    var similarTop = Math.abs(widthScale / depthScale - 1) <= tolerance;
+    var reciprocal = 1 / PHI;
+    var usesReciprocal = Math.abs((widthScale - reciprocal) / reciprocal) <= tolerance;
+    var scaleMetric = metric('topScale', widthScale, usesReciprocal ? reciprocal : 1 / (PHI * PHI));
+    scaleMetric.targetSymbol = usesReciprocal ? '1/φ' : '1/φ²';
+    scaleMetric.depthActual = depthScale;
+    scaleMetric.depthRelativeDeviation = (depthScale - scaleMetric.target) / scaleMetric.target;
+    scaleMetric.sameScale = similarTop;
+    scaleMetric.matches = scaleMetric.matches && Math.abs(scaleMetric.depthRelativeDeviation) <= tolerance && similarTop;
+    return {
+      tolerance: tolerance, similarTop: similarTop,
+      metrics: [
+        metric('basePlan', s.W / s.B, PHI),
+        metric('topPlan', s.w / s.b, PHI),
+        metric('baseAspect', s.W / s.D, PHI),
+        metric('topAspect', s.w / s.d, PHI),
+        metric('depthHeight', s.D / s.H, PHI),
+        metric('widthHeight', s.W / s.H, PHI * PHI),
+        scaleMetric
+      ]
+    };
+  }
+  return { PHI: PHI, calculate: calculate, validate: validate, slopePreset: slopePreset, elevations: elevations, proportions: proportions };
 });

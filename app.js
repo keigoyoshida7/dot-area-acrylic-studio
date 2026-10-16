@@ -4,7 +4,7 @@
   const $ = id => document.getElementById(id);
   const PHI = Geometry.PHI, GOLD = 1 / PHI ** 2;
   const original = {W:1618,B:1618/PHI,D:1618/PHI,H:1000,w:1618*GOLD,b:1618/PHI*GOLD,d:1618/PHI*GOLD,ox:0,oz:0,t:5,density:1.19,baseLock:true,basePlanLock:true,topLock:true,includeBase:false,includeTop:false,showStone:true,baseElevation:0,filClearance:20,filStaging:true,filPose:'auto',filApplied:false,taper:GOLD,preset:'golden'};
-  let state = {...original}, unit='mm', view='3d', faceId='front', yaw=-0.56, pitch=0.40, zoom=1, selectedEdge=null, model, isInvalid=false, displayBaseElevation=0;
+  let state = {...original}, unit='mm', view='3d', faceId='front', yaw=-0.56, pitch=0.40, zoom=1, selectedEdge=null, selectedProportion='basePlan', model, isInvalid=false, displayBaseElevation=0;
   const factors={mm:1,cm:10,m:1000}, labels='ABCDEFGH';
   const STONE={width:500,height:300,depth:300};
   const stoneMesh=(()=>{
@@ -77,11 +77,11 @@
     $('density').value=state.density;
     document.querySelectorAll('[data-taper]').forEach(el=>{el.disabled=!state.topLock;el.classList.toggle('active',Math.abs(+el.dataset.taper-state.taper)<1e-6&&state.topLock);});
     document.querySelectorAll('[data-preset]').forEach(el=>el.classList.toggle('active',el.dataset.preset===state.preset));
-    const descriptions={golden:'底面・上面の前幅／後幅をφに。上面は底面の1/φ²。',low:'底面・上面の黄金比を保ち、高さを前幅の1/φ²に。',source:'資料の幅・奥行・高さを仮設定。台形は今回の設計案。',free:'寸法を個別に指定。側板の平面を保つよう上面の後幅が連動。',slope325:'4本の斜辺と底面を32.5°に。黄金比の台形を保ち、高さと上面の前後位置を調整。',front325:'正面図の左右の斜線を底辺から32.5°に。底面・上面の黄金比と中心位置を保ちます。',fil:'FILの開口・展示室の条件から算出した上限候補。曲がり角・階段は未判定です。',custom:'寸法を調整中。チェックした比率と側板の平面を保ちます。'};
+    const descriptions={golden:'底面・上面の前幅／後幅をφに。上面は底面の1/φ²。',low:'前幅→奥行→高さを順にφで割る。底面・上面の前幅／後幅もφに。',source:'資料の幅・奥行・高さを仮設定。台形は今回の設計案。',free:'寸法を個別に指定。側板の平面を保つよう上面の後幅が連動。',slope325:'4本の斜辺と底面を32.5°に。黄金比の台形を保ち、高さと上面の前後位置を調整。',front325:'正面図の左右の斜線を底辺から32.5°に。底面・上面の黄金比と中心位置を保ちます。',fil:'FILの開口・展示室の条件から算出した上限候補。曲がり角・階段は未判定です。',custom:'寸法を調整中。チェックした比率と側板の平面を保ちます。'};
     $('presetDescription').textContent=descriptions[state.preset]||descriptions.custom;
     $('unitLabel').textContent=$('edgeUnit').textContent=unit;
   }
-  function showError(errors){isInvalid=true;$('errors').hidden=false;$('errors').textContent=errors.join(' ');$('stageMeta').textContent='入力を確認してください · 図は前の有効な寸法';document.querySelectorAll('#exportSVG,#exportCSV,#saveConfig,#print,#copyHeightReply,#placementCeiling').forEach(el=>el.disabled=true);['elevationLower','elevationUpper','ceilingGap'].forEach(id=>$(id).textContent='—');$('elevationStatus').textContent='入力を確認してください';$('heightReply').value='寸法と設置高さの入力を確認してください。';}
+  function showError(errors){isInvalid=true;document.querySelectorAll('button[data-proportion]').forEach(el=>el.disabled=true);$('goldenSummary').textContent='寸法入力を確認してください。寸法図は前の有効な値です。';$('proportionStatus').textContent='入力を確認してください';$('errors').hidden=false;$('errors').textContent=errors.join(' ');$('stageMeta').textContent='入力を確認してください · 図は前の有効な寸法';document.querySelectorAll('#exportSVG,#exportCSV,#saveConfig,#print,#copyHeightReply,#placementCeiling').forEach(el=>el.disabled=true);['elevationLower','elevationUpper','ceilingGap'].forEach(id=>$(id).textContent='—');$('elevationStatus').textContent='入力を確認してください';$('heightReply').value='寸法と設置高さの入力を確認してください。';}
   function update(skip){
     syncControls(skip);const check=Geometry.validate(state);
     if(!check.valid){showError(check.errors);if($('filDialog').open)renderFil();return;}
@@ -141,12 +141,61 @@
     $('filDialog').close();update();toast('FILの条件内の上限候補を適用しました。旋回・階段は別途確認してください。');
   }
   function ratios(){
-    const r=state.W/state.D,rp=state.W/state.B,rt=state.w/state.b,rw=state.w/state.W,rd=state.d/state.D;
-    $('ratioBase').textContent=fmt(r,6);$('ratioPlan').textContent=fmt(rp,6);$('ratioTopPlan').textContent=fmt(rt,6);
-    const note=r=>Math.abs(r/PHI-1)<1e-8?'φに一致':'φとの差 '+((r/PHI-1)*100>=0?'+':'')+fmt((r/PHI-1)*100,3)+'%';
-    $('ratioBaseNote').textContent=note(r);$('ratioPlanNote').textContent=note(rp);$('ratioTopPlanNote').textContent=note(rt);
-    $('ratioTop').textContent=Math.abs(rw-rd)<1e-8?fmt(rw,6):fmt(rw,3)+' / '+fmt(rd,3);
-    $('ratioTopNote').textContent=Math.abs(rw-rd)>1e-8?'幅／奥行を別々に指定':Math.abs(rw-GOLD)<1e-8?'1/φ²に一致':Math.abs(rw-1/PHI)<1e-8?'1/φに一致':'上面と底面は相似';
+    const result=Geometry.proportions(state),s=model.state;
+    const meta={
+      basePlan:{value:'ratioPlan',title:'底面の前幅と後幅',view:'平面図 ／ 底面',a:'W',b:'B',target:'φ',description:'底面の前幅Wを、後幅Bで割った値です。φに一致すると、前幅は後幅の約1.618倍になります。'},
+      topPlan:{value:'ratioTopPlan',title:'上面の前幅と後幅',view:'平面図 ／ 上面',a:'w',b:'b',target:'φ',description:'上面の前幅wを、後幅bで割った値です。底面と上面で、それぞれの台形の前後幅を比較しています。'},
+      baseAspect:{value:'ratioBase',title:'底面の前幅と奥行',view:'平面図 ／ 底面',a:'W',b:'D',target:'φ',description:'底面の前幅Wを、奥行Dで割った値です。Dは前後の垂直な距離で、台形の斜めの側辺とは別の長さです。'},
+      topAspect:{value:'ratioTopAspect',title:'上面の前幅と奥行',view:'平面図 ／ 上面',a:'w',b:'d',target:'φ',description:'上面の前幅wを、奥行dで割った値です。上面の寸法を個別に変えた場合も、現在の比率を計算します。'},
+      depthHeight:{value:'ratioDepthHeight',title:'奥行と垂直の高さ',view:'側面図 ／ 奥行と高さ',a:'D',b:'H',target:'φ',description:'底面の奥行Dを、垂直高さHで割った値です。「低いかたち」では、奥行から高さへもう一度φで割っています。Hは床から上面までの設置高さとは別に、上下の面の間隔を表します。'},
+      widthHeight:{value:'ratioWidthHeight',title:'前幅と垂直の高さ',view:'正面図 ／ 前幅と高さ',a:'W',b:'H',target:'φ²',description:'この比較の設計基準は、黄金比の2乗φ²です。「低いかたち」の前幅→奥行→高さという2段分の関係にあたり、幅と高さの比は約2.618になります。'},
+      topScale:{value:'ratioTop',title:'上面を底面の何倍にするか',view:'平面図 ／ 底面と上面を重ねて比較',a:'w',b:'W',target:'1/φ²',description:'上面の前幅・奥行を底面と比較します。1/φ²は約0.382倍、1/φは約0.618倍で、どちらも黄金比に基づく縮尺です。幅と奥行が同じ倍率なら、ふたつの台形は相似です。'}
+    };
+    const metrics=Object.fromEntries(result.metrics.map(m=>[m.id,m]));
+    meta.topScale.target=metrics.topScale.targetSymbol;
+    const deviation=value=>Math.abs(value*100)<0.001?'0.001%未満':(value>=0?'+':'')+fmt(value*100,3)+'%';
+    const status=(m,id)=>m.matches?meta[id].target+'に一致':id==='topScale'&&!m.sameScale?'幅・奥行の倍率が異なる':meta[id].target+'との差 '+deviation(m.relativeDeviation);
+    result.metrics.forEach(m=>{
+      const info=meta[m.id];$(info.value).textContent=m.id==='topScale'&&!m.sameScale?fmt(m.actual,4)+' / '+fmt(m.depthActual,4):fmt(m.actual,6);
+      $(info.value+'Note').textContent=status(m,m.id);
+      const button=document.querySelector(`button[data-proportion="${m.id}"]`);button.disabled=false;button.classList.toggle('matched',m.matches);button.classList.toggle('selected',m.id===selectedProportion);button.setAttribute('aria-pressed',String(m.id===selectedProportion));
+    });
+    const chain=metrics.baseAspect.matches&&metrics.depthHeight.matches;
+    const count=result.metrics.filter(m=>m.id!=='widthHeight'&&m.id!=='topScale'&&m.matches).length;
+    $('goldenSummary').textContent=chain?'前幅W → 奥行D → 垂直高さHを、隣同士がφになるようにつないだ形です。底面・上面の台形の比率は、下の一覧で確認できます。':`φを基準に比較する5項目のうち、現在${count}項目が一致しています。各カードを選ぶと、比較している長さと現在の計算式を確認できます。`;
+    $('goldenChain').textContent=chain?`前幅：奥行：高さ = φ²：φ：1　（約 ${length(s.W)}：${length(s.D)}：${length(s.H)} ${unit}）`:`現在の 前幅：奥行：高さ ≈ ${fmt(s.W/s.H,4)}：${fmt(s.D/s.H,4)}：1`;
+    const m=metrics[selectedProportion],info=meta[selectedProportion];
+    $('proportionView').textContent=info.view;$('proportionTitle').textContent=info.title;
+    const equation=(a,b,value)=>`${a} ${length(s[a])} ${unit} ÷ ${b} ${length(s[b])} ${unit} ≈ ${fmt(value,6)}`;
+    $('proportionEquation').textContent=equation(info.a,info.b,m.actual)+(selectedProportion==='topScale'?'\n'+equation('d','D',m.depthActual):'');
+    $('proportionStatus').textContent=status(m,selectedProportion);$('proportionStatus').className='proportion-status '+(m.matches?'matched':'different');
+    $('proportionDescription').textContent=info.description;
+    $('proportionDrawing').innerHTML=drawProportionDiagram(selectedProportion);$('proportionDrawing').dataset.proportion=selectedProportion;
+    $('proportionDrawing').setAttribute('aria-label',info.view+'。金色の'+info.a+'を白の'+info.b+'で比較。'+status(m,selectedProportion));
+  }
+  function drawProportionDiagram(id){
+    const s=model.state,top=id==='topPlan'||id==='topAspect';
+    const plan=(W,B,D,x=0,z=0)=>[[x-W/2,-z+D/2],[x+W/2,-z+D/2],[x+B/2,-z-D/2],[x-B/2,-z-D/2]];
+    let outline=plan(top?s.w:s.W,top?s.b:s.B,top?s.d:s.D),inner=[];
+    if(id==='depthHeight')outline=[[-s.D/2,0],[s.D/2,0],[s.oz+s.d/2,-s.H],[s.oz-s.d/2,-s.H]];
+    if(id==='widthHeight')outline=[[-s.W/2,0],[s.W/2,0],[s.ox+s.w/2,-s.H],[s.ox-s.w/2,-s.H]];
+    if(id==='topScale')inner=plan(s.w,s.b,s.d,s.ox,s.oz);
+    const all=outline.concat(inner),xs=all.map(p=>p[0]),ys=all.map(p=>p[1]),minx=Math.min(...xs),maxx=Math.max(...xs),miny=Math.min(...ys),maxy=Math.max(...ys);
+    const scale=Math.min(280/(maxx-minx),150/(maxy-miny)),cx=(minx+maxx)/2,cy=(miny+maxy)/2;
+    const project=p=>[205+(p[0]-cx)*scale,133+(p[1]-cy)*scale],p=outline.map(project),q=inner.map(project);
+    let svg=`<polygon points="${points(p)}" class="proportion-shape"/>`;
+    if(q.length)svg+=`<polygon points="${points(q)}" class="proportion-shape proportion-top"/>`;
+    function measure(a,b,symbol,role,offset){
+      const dx=b[0]-a[0],dy=b[1]-a[1],n=Math.hypot(dx,dy),nx=-dy/n,ny=dx/n;
+      const u=[a[0]+nx*offset,a[1]+ny*offset],v=[b[0]+nx*offset,b[1]+ny*offset],mid=[(u[0]+v[0])/2+nx*13,(u[1]+v[1])/2+ny*13+5];
+      svg+=`<g data-dimension="${symbol}" data-length-mm="${s[symbol]}" class="proportion-measure ${role}">`+line(a,u,'proportion-extension')+line(b,v,'proportion-extension')+line(u,v,'proportion-line')+line([u[0]-nx*4,u[1]-ny*4],[u[0]+nx*4,u[1]+ny*4],'proportion-line')+line([v[0]-nx*4,v[1]-ny*4],[v[0]+nx*4,v[1]+ny*4],'proportion-line')+`<text x="${mid[0]}" y="${mid[1]}" text-anchor="middle">${symbol}</text></g>`;
+    }
+    const width=top?'w':'W';
+    if(id==='basePlan'||id==='topPlan'){measure(p[0],p[1],width,'numerator',23);measure(p[3],p[2],top?'b':'B','denominator',-23);}
+    if(id==='baseAspect'||id==='topAspect'){measure(p[0],p[1],width,'numerator',23);const right=Math.max(...p.map(v=>v[0]))+8;measure([right,p[1][1]],[right,p[2][1]],top?'d':'D','denominator',22);}
+    if(id==='depthHeight'||id==='widthHeight'){measure(p[0],p[1],id==='depthHeight'?'D':'W','numerator',23);const right=Math.max(...p.map(v=>v[0]))+8;measure([right,p[1][1]],[right,p[2][1]],'H','denominator',22);}
+    if(id==='topScale'){measure(p[0],p[1],'W','denominator',24);measure(q[0],q[1],'w','numerator',-17);const right=Math.max(...p.map(v=>v[0]))+8,left=Math.min(...p.map(v=>v[0]))-8;measure([right,p[1][1]],[right,p[2][1]],'D','denominator',22);measure([left,q[0][1]],[left,q[3][1]],'d','numerator',-20);}
+    return svg;
   }
   const line=(a,b,cls='drawing-edge',extra='')=>`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" class="${cls}" ${extra}/>`;
   const text=(p,value,cls='drawing-dim',extra='')=>`<text x="${p[0]}" y="${p[1]}" text-anchor="middle" class="${cls}" ${extra}>${esc(value)}</text>`;
@@ -282,7 +331,7 @@
     if(type==='source'){state.baseLock=false;state.D=1000;}
     if(type==='free'){state.baseLock=false;state.basePlanLock=false;state.topLock=false;state.ox=100;state.oz=-60;}
     if(type==='slope325'||type==='front325')state=Geometry.slopePreset(state,type==='slope325'?'spatial':'front');
-    constrain();selectedEdge=null;update();
+    constrain();selectedEdge=null;selectedProportion=type==='low'?'depthHeight':'basePlan';update();
   }
   function download(name,content,type){const url=URL.createObjectURL(new Blob([content],{type}));const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
   function exportSVG(){
@@ -340,6 +389,8 @@
   buildControls();
   Transport.POSES.forEach(pose=>$('filPose').insertAdjacentHTML('beforeend',`<option value="${pose.id}">${esc(pose.name)}</option>`));
   try{const saved=localStorage.getItem('dot-area-acrylic-v2');if(saved)importState(JSON.parse(saved));}catch(_){}
+  if(state.preset==='low')selectedProportion='depthHeight';
+  document.querySelectorAll('button[data-proportion]').forEach(el=>el.addEventListener('click',()=>{if(isInvalid)return;selectedProportion=el.dataset.proportion;ratios();}));
   document.querySelectorAll('[data-preset]').forEach(el=>el.addEventListener('click',()=>preset(el.dataset.preset)));
   document.querySelectorAll('[data-view]').forEach(el=>el.addEventListener('click',()=>{view=el.dataset.view;zoom=1;document.querySelectorAll('[data-view]').forEach(t=>{t.classList.toggle('active',t===el);t.setAttribute('aria-selected',String(t===el));});$('stageMeta').textContent=view==='panels'?'TRUE SIZE · 6 FACES':'6 FACES · 12 EDGES';draw();}));
   document.querySelectorAll('[data-face]').forEach(el=>el.addEventListener('click',()=>{faceId=el.dataset.face;draw();readout();}));
@@ -380,7 +431,7 @@
   $('drawing').addEventListener('pointermove',event=>{if(!drag)return;const dx=event.clientX-drag.x,dy=event.clientY-drag.y;if(Math.abs(dx)+Math.abs(dy)>5)dragged=true;if(dragged){yaw=drag.yaw+dx*.006;pitch=Math.max(.05,Math.min(1.35,drag.pitch+dy*.005));draw();}});
   $('drawing').addEventListener('pointerup',event=>{drag=null;if($('drawing').hasPointerCapture(event.pointerId))$('drawing').releasePointerCapture(event.pointerId);});$('drawing').addEventListener('pointercancel',()=>{drag=null;});
   $('drawing').addEventListener('click',event=>{if(dragged){dragged=false;return;}const edge=event.target.closest('[data-select-edge]');if(edge){selectedEdge=selectedEdge===edge.dataset.selectEdge?null:edge.dataset.selectEdge;draw();readout();return;}const f=event.target.closest('[data-select-face]');if(f){faceId=f.dataset.selectFace;draw();readout();}});
-  window.AcrylicStudio={getState:()=>({...state}),getModel:()=>model,getView:()=>view,setState:(next)=>{state={...state,...next};constrain();update();},isInvalid:()=>isInvalid,getTransport:()=>Transport.calculate(state,filOptions()),getPlacement:()=>Geometry.elevations(state,Transport.FIL.room.height)};
+  window.AcrylicStudio={getState:()=>({...state}),getModel:()=>model,getView:()=>view,setState:(next)=>{state={...state,...next};constrain();update();},isInvalid:()=>isInvalid,getTransport:()=>Transport.calculate(state,filOptions()),getPlacement:()=>Geometry.elevations(state,Transport.FIL.room.height),getProportions:()=>Geometry.proportions(state),getSelectedProportion:()=>selectedProportion};
   window.addEventListener('resize',draw);
   update();
 })();
